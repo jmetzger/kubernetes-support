@@ -7,7 +7,7 @@
 
 - Kubernetes Cluster läuft (kubeadm, kubespray o.ä.)
 - `kubectl` konfiguriert
-- `helm` installiert (Version 3.x)
+- `helm` installiert
 - HPE Alletra Array erreichbar vom Cluster
 - iSCSI Netzwerk konfiguriert (mind. 2 NICs pro Node empfohlen)
 
