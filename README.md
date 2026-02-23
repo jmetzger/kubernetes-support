@@ -1,6 +1,4 @@
-# kubernetes-support
-
-## Agenda
+# Anleitungen
 
 | # | Thema | Beschreibung |
 |---|-------|--------------|
