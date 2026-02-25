@@ -5,4 +5,4 @@
       
  1. OpenBAO
     * [idp (Kubernetes) mit OpenBao](/openbao/idp-kubernetes.md)
-    * 8
+    * [ssh-public keys mit openbao](/openbao/ssh-public-keys.md)
