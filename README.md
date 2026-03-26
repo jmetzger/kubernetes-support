@@ -6,3 +6,6 @@
  1. OpenBAO
     * [idp (Kubernetes) mit OpenBao](/openbao/idp-kubernetes.md)
     * [ssh-public keys aus openbao provisionieren](/openbao/ssh-public-keys.md)
+   
+ 1. ArgoCD-autopilot
+    * [Problem - zu grosser Annotation-Inhalt lösen]()
