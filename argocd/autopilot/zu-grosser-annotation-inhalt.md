@@ -157,6 +157,17 @@ Auch diese Änderung sollte im GitOps-Repo persistiert werden (z.B. als Kustomiz
 
 Für ein Skript, das den gesamten Prozess automatisiert:
 
+```
+cd
+mkdir argocd-autopilot
+cd argocd-autopilot
+```
+
+```
+nano install.sh
+```
+
+
 ```bash
 #!/bin/bash
 set -euo pipefail
@@ -195,6 +206,10 @@ echo "      syncOptions:"
 echo "        - ServerSideApply=true"
 echo ""
 echo "    Dann committen und pushen, damit zukünftige Syncs Server-Side Apply nutzen."
+```
+
+```
+chmod u+x install.sh
 ```
 
 ---
