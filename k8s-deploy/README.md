@@ -1,6 +1,20 @@
 # K8s Cluster Deployment auf vSphere
 
-Automatisiertes Deployen von Kubernetes-Clustern mit Packer, OpenTofu und Ansible auf VMware vSphere.
+Automatisiertes Deployen von Kubernetes-Clustern mit Packer, OpenTofu und Ansible auf VMware vSphere — orchestriert über GitLab CI/CD.
+
+## Ablauf
+
+```
+GitLab CI/CD Pipeline
+  │
+  ├── 1. Packer    → Gold Images (VMk8s, VMhaproxy) in vSphere Content Library
+  │
+  ├── 2. OpenTofu  → VMs aus Gold Images klonen + Netzwerk konfigurieren
+  │                  (HAProxy, Control Plane, Workernodes)
+  │
+  └── 3. Ansible   → Software konfigurieren
+                     (HAProxy + Keepalived, kubeadm init, Worker joinen)
+```
 
 ## Struktur
 

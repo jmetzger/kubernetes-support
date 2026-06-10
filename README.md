@@ -4,7 +4,7 @@
 
 ### K8s Cluster Deployment auf vSphere
 
-* [k8s-deploy/](k8s-deploy/) — Packer, OpenTofu, Ansible
+* [k8s-deploy/](k8s-deploy/) — Packer, OpenTofu, Ansible via GitLab CI/CD
 
 ### Analyse & Dokumentation
 
