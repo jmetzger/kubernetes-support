@@ -6,6 +6,7 @@
 
 Analyse, Best Practices und Verbesserungsvorschläge für das automatisierte Deployen von Kubernetes-Clustern mit OpenTofu + Ansible auf VMware vSphere.
 
+* [OpenTofu Code: K8s Cluster auf vSphere](opentofu/)
 * [Code-Analyse: Übersicht](opentofu-k8s/01-code-analyse.md)
 * [Was gut gemacht ist — Best Practices mit Erklärungen](opentofu-k8s/01a-was-gut-ist.md)
 * [Was verbessert werden sollte](opentofu-k8s/01b-was-verbessert-werden-sollte.md)
