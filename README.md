@@ -4,7 +4,9 @@
 
 ### K8s Cluster Deployment auf vSphere
 
-* [k8s-deploy/](k8s-deploy/) — Packer, OpenTofu, Ansible via GitLab CI/CD
+Automatisiertes Deployen von Kubernetes-Clustern auf VMware vSphere via GitLab CI/CD.
+
+* [k8s-deploy/](k8s-deploy/) — Packer, OpenTofu, Ansible
 
 ### Analyse & Dokumentation
 
