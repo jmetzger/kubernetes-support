@@ -13,6 +13,7 @@ Automatisiertes Deployen von Kubernetes-Clustern auf VMware vSphere via GitLab C
 * [Code-Analyse: Übersicht](opentofu-k8s/01-code-analyse.md)
 * [Was gut gemacht ist](opentofu-k8s/01a-was-gut-ist.md)
 * [Was verbessert werden sollte](opentofu-k8s/01b-was-verbessert-werden-sollte.md)
+* [Was behoben werden muss](opentofu-k8s/01c-was-behoben-werden-muss.md)
 * [Multi-Cluster Self-Service via GitLab Formular](opentofu-k8s/02-multi-cluster-selfservice.md)
 * [Modul-Struktur: vsphere-vm (DRY-Refactoring)](opentofu-k8s/04-modul-struktur-vsphere-vm.md)
 * [GitLab CI/CD Deployment mit OpenTofu](opentofu-k8s/05-gitlab-cicd-deployment.md)

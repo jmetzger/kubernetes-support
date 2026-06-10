@@ -16,13 +16,22 @@ GitLab CI/CD Pipeline
                      (HAProxy + Keepalived, kubeadm init, Worker joinen)
 ```
 
+## GitLab CI/CD Pipeline
+
+| Datei | Inhalt |
+|---|---|
+| [.gitlab-ci.yml](.gitlab-ci.yml) | Pipeline-Definition: Plan, Deploy, Destroy |
+
+Die Pipeline wird manuell gestartet: **CI/CD → Pipelines → Run pipeline**. Dort alle Variablen (Cluster-Name, IP-Bereiche, Anzahl Nodes) ausfüllen und "Run pipeline" klicken.
+
 ## Struktur
 
 ```
 k8s-deploy/
-  packer/       ← VM Gold Images bauen
-  opentofu/     ← VMs provisionieren
-  ansible/      ← VMs konfigurieren
+  .gitlab-ci.yml  ← Pipeline-Definition
+  packer/         ← VM Gold Images bauen
+  opentofu/       ← VMs provisionieren
+  ansible/        ← VMs konfigurieren
 ```
 
 ## Packer — Gold Images

@@ -68,8 +68,11 @@ Detailliertes Beispiel: [04-modul-struktur-vsphere-vm.md](04-modul-struktur-vsph
 
 **Problem:** Das GitLab-State-Backend wird in jedem `deploy.yml` als 6 Umgebungsvariablen gesetzt — das sind ~50 Zeilen die sich in jedem Playbook wiederholen.
 
+**Warum schlecht:** Eine URL-Änderung (z.B. neues GitLab-Projekt) muss in jedem einzelnen Playbook nachgezogen werden. Wird eine Stelle vergessen, zeigen verschiedene Playbooks auf unterschiedliche States.
+
+**Aktuell — in jedem deploy.yml ~6x:**
+
 ```yaml
-# aktuell: in jedem deploy.yml ~6x
 environment:
   TF_HTTP_ADDRESS: "https://gitlab.intern/.../state/{{ vm_prefix }}-cp"
   TF_HTTP_LOCK_ADDRESS: "https://gitlab.intern/.../state/{{ vm_prefix }}-cp/lock"
@@ -106,7 +109,7 @@ terraform {
 
 **Problem:** Es wird direkt deployed ohne vorher zu zeigen was sich ändert.
 
-**Warum wichtig:** Ein falscher Variablenwert (z.B. `vm_count = 0` statt `3`) kann alle VMs löschen — ohne Warnung.
+**Warum schlecht:** Ein falscher Variablenwert (z.B. `vm_count = 0` statt `3`) kann alle VMs löschen — ohne Warnung.
 
 ```yaml
 # aktuell — kein Review möglich:
@@ -144,7 +147,7 @@ apply:
 
 **Problem:** Ohne Lockfile zieht `tofu init` beim nächsten Aufruf die aktuell neueste Provider-Version innerhalb des erlaubten Bereichs.
 
-**Warum wichtig:** `version = "~> 2.6"` erlaubt heute `2.6.1`, morgen `2.7.0` — mit potenziellen Breaking Changes.
+**Warum schlecht:** `version = "~> 2.6"` erlaubt heute `2.6.1`, morgen `2.7.0` — mit potenziellen Breaking Changes.
 
 ```bash
 # Lockfile erzeugen — einmalig ausführen:
@@ -164,6 +167,9 @@ git commit -m "chore: add provider lock file"
 
 **Problem:** Verschiedene Module verwenden unterschiedliche Konventionen für dasselbe Konzept.
 
+**Warum schlecht:** Wer ein neues Modul hinzufügt, weiß nicht welche Konvention gilt.
+Beim Zusammenführen zu einem Modul (siehe Punkt 1) würden diese Inkonsistenzen Fehler verursachen.
+
 ```hcl
 # root/variables.tf
 variable "dns_servers" { type = list(string) }   # Plural, Liste
@@ -177,9 +183,6 @@ variable "dns_server"  { type = string }          # Singular, einzelner String
 ipv4_netmask = 24    # ← in root ist es var.ip_netmask
 ```
 
-**Warum schlecht:** Wer ein neues Modul hinzufügt, weiß nicht welche Konvention gilt.
-Beim Zusammenführen zu einem Modul (siehe Punkt 1) würden diese Inkonsistenzen Fehler verursachen.
-
 **Lösung:** Variablen-Konventionen in einer `CONVENTIONS.md` oder direkt im Modul dokumentieren,
 dann alle Module vereinheitlichen.
 
@@ -189,17 +192,14 @@ dann alle Module vereinheitlichen.
 
 **Problem:** Erlaubt anderen System-Usern auf dem Ansible-Controller die temporären Dateien zu lesen.
 
+**Warum schlecht:** Ansible läuft als root, schreibt Temp-Dateien in `/tmp` — die Variable war ein schneller Workaround wenn der Ziel-User kein root ist. Wenn Credentials (z.B. `vcenter_password`) als Ansible-Variablen vorliegen, könnten sie über `/tmp` von anderen Prozessen gelesen werden.
+
+**Aktuell — in jedem deploy.yml:**
+
 ```yaml
-# aktuell — in jedem deploy.yml
 vars:
   ansible_shell_allow_world_readable_temp: true
 ```
-
-**Warum entstanden:** Ansible läuft als root, schreibt Temp-Dateien in `/tmp` mit restriktiven Rechten —
-das schlägt fehl wenn der Ziel-User kein root ist. Die Variable ist ein schneller Workaround.
-
-**Warum problematisch:** Wenn Credentials (z.B. vcenter_password) als Ansible-Variablen vorliegen,
-könnten sie über `/tmp` von anderen Prozessen gelesen werden.
 
 **Lösung:**
 
@@ -212,11 +212,9 @@ vars:
 
 ## 7. Doppelte Tasks
 
-**In `haproxy-setup.yml`:** Task "Pakete installieren" ist zweimal identisch vorhanden (Zeilen ~20 und ~29).
+**Problem:** In `haproxy-setup.yml` ist Task "Pakete installieren" zweimal identisch vorhanden (Zeilen ~20 und ~29), in `k8s-setup.yml` Task "Prüfen ob Cluster bereits existiert" ebenfalls.
 
-**In `k8s-setup.yml`:** Task "Prüfen ob Cluster bereits existiert" ist zweimal vorhanden.
-
-**Warum wichtig:** Beide Tasks werden ausgeführt — doppelter API-Call, verwirrend im Ansible-Output,
+**Warum schlecht:** Beide Tasks werden ausgeführt — doppelter API-Call, verwirrend im Ansible-Output,
 und beim zweiten Mal ist `changed` immer `false` was falsche Sicherheit suggeriert.
 
 **Fix:** Einfach den duplizierten Task löschen.
@@ -226,6 +224,8 @@ und beim zweiten Mal ist `changed` immer `false` was falsche Sicherheit suggerie
 ## 8. Hardcoded Werte die Variablen sein sollten
 
 **Problem:** Werte die sich je nach Umgebung ändern können, sind direkt im Code.
+
+**Warum schlecht:** Jede Umgebungsänderung erfordert manuelle Suche im Code. Werte die an mehreren Stellen stehen (z.B. `vip` in 3 Playbooks) müssen mehrfach geändert werden — eine vergessene Stelle führt zu inkonsistentem Verhalten.
 
 | Datei | Hardcoded Wert | Problem | Besser |
 |-------|---------------|---------|--------|
