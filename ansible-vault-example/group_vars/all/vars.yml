@@ -1,0 +1,6 @@
+# Oeffentliche Variablen - kein Secret, kann im Klartext im Repo liegen
+app_name: myapp
+app_port: 8080
+db_host: db.internal
+db_name: myapp_db
+db_user: myapp_user

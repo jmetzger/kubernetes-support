@@ -1,0 +1,12 @@
+[database]
+host     = {{ db_host }}
+name     = {{ db_name }}
+user     = {{ db_user }}
+password = {{ db_password }}    # Ansible entschluesselt Vault-Secret automatisch
+
+[api]
+key  = {{ api_key }}
+port = {{ app_port }}
+
+[mail]
+smtp_password = {{ smtp_password }}

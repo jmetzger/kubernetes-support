@@ -1,0 +1,16 @@
+---
+- name: Deploy Webserver
+  hosts: webservers
+  become: true
+  roles:
+    - webserver
+
+- name: Configure Database
+  hosts: dbservers
+  become: true
+  tasks:
+    - name: Set DB password
+      community.mysql.mysql_user:
+        name: "{{ db_user }}"
+        password: "{{ db_password }}"   # kommt aus Vault-verschluesseltem secrets.yml
+        state: present

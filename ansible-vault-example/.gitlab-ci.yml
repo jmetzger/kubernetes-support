@@ -1,0 +1,73 @@
+---
+stages:
+  - lint
+  - deploy
+
+variables:
+  ANSIBLE_HOST_KEY_CHECKING: "False"
+  ANSIBLE_FORCE_COLOR: "true"
+
+# -------------------------------------------------------
+# Lint - kein Vault-Passwort noetig
+# -------------------------------------------------------
+lint:
+  stage: lint
+  image: cytopia/ansible:2.13
+  script:
+    - ansible-lint site.yml
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+
+# -------------------------------------------------------
+# Deploy Staging
+# VAULT_PASSWORD und SSH_PRIVATE_KEY kommen aus
+# GitLab CI/CD Variables (Settings -> CI/CD -> Variables)
+# -------------------------------------------------------
+deploy-staging:
+  stage: deploy
+  image: cytopia/ansible:2.13
+  environment: staging
+  before_script:
+    # SSH Key einrichten
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - ssh-keyscan -H 10.0.0.1 10.0.0.2 >> ~/.ssh/known_hosts
+
+    # Vault Passwort als Datei ablegen (wird am Ende geloescht)
+    - echo "$VAULT_PASSWORD" > /tmp/.vault_pass
+    - chmod 600 /tmp/.vault_pass
+  script:
+    - ansible-playbook site.yml
+        -i inventory/hosts.yml
+        --vault-password-file /tmp/.vault_pass
+        --limit staging
+  after_script:
+    - rm -f /tmp/.vault_pass
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+# -------------------------------------------------------
+# Deploy Production - nur auf main Branch
+# -------------------------------------------------------
+deploy-production:
+  stage: deploy
+  image: cytopia/ansible:2.13
+  environment: production
+  before_script:
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY_PROD" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - echo "$VAULT_PASSWORD" > /tmp/.vault_pass
+    - chmod 600 /tmp/.vault_pass
+  script:
+    - ansible-playbook site.yml
+        -i inventory/hosts.yml
+        --vault-password-file /tmp/.vault_pass
+        --limit production
+  after_script:
+    - rm -f /tmp/.vault_pass
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  when: manual   # Produktion nur manuell ausloesen
