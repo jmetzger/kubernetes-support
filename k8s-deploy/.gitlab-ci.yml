@@ -1,0 +1,105 @@
+# K8s Cluster Deployment Pipeline
+# Trigger: CI/CD -> Pipelines -> Run pipeline
+# Dort alle Variablen ausfuellen und "Run pipeline" klicken.
+
+stages:
+  - plan
+  - deploy
+  - destroy
+
+# -------------------------------------------------------------------
+# Formular-Variablen — erscheinen beim "Run pipeline" als Eingabefelder
+# -------------------------------------------------------------------
+variables:
+  CLUSTER_NAME:
+    value: "prod-k8s-1"
+    description: "Eindeutiger Cluster-Name — wird als State-Name verwendet (z.B. prod-k8s-1, dev-k8s-2)"
+  CP_COUNT:
+    value: "3"
+    description: "Anzahl Control Plane Nodes (empfohlen: 3 fuer HA)"
+  WORKER_COUNT:
+    value: "3"
+    description: "Anzahl Worker Nodes"
+  HAPROXY_BASE_IP:
+    value: "10.0.0.20"
+    description: "Start-IP fuer HAProxy VMs (lb-1 bekommt diese IP, lb-2 die naechste)"
+  CP_BASE_IP:
+    value: "10.0.0.10"
+    description: "Start-IP fuer Control Plane VMs (cp-1 bekommt diese IP, cp-2 die naechste, ...)"
+  WORKER_BASE_IP:
+    value: "10.0.0.30"
+    description: "Start-IP fuer Worker VMs (worker-1 bekommt diese IP, worker-2 die naechste, ...)"
+  TF_ROOT: "k8s-deploy/opentofu"
+
+# -------------------------------------------------------------------
+# Shared: tofu init mit GitLab State Backend
+# CI_API_V4_URL, CI_PROJECT_ID und CI_JOB_TOKEN sind automatisch verfuegbar
+# -------------------------------------------------------------------
+.tofu_init: &tofu_init
+  - cd ${TF_ROOT}
+  - tofu init
+      -backend-config="address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${CLUSTER_NAME}"
+      -backend-config="lock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${CLUSTER_NAME}/lock"
+      -backend-config="unlock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${CLUSTER_NAME}/lock"
+      -backend-config="lock_method=POST"
+      -backend-config="unlock_method=DELETE"
+      -backend-config="username=gitlab-ci-token"
+      -backend-config="password=${CI_JOB_TOKEN}"
+
+# -------------------------------------------------------------------
+# Plan — laeuft automatisch, zeigt was erstellt wird
+# -------------------------------------------------------------------
+plan:
+  stage: plan
+  image: ghcr.io/opentofu/opentofu:latest
+  script:
+    - *tofu_init
+    - tofu plan
+        -var="cp_count=${CP_COUNT}"
+        -var="worker_count=${WORKER_COUNT}"
+        -var="haproxy_base_ip=${HAPROXY_BASE_IP}"
+        -var="cp_base_ip=${CP_BASE_IP}"
+        -var="worker_base_ip=${WORKER_BASE_IP}"
+        -out=tfplan
+  artifacts:
+    name: "tfplan-${CLUSTER_NAME}"
+    paths:
+      - ${TF_ROOT}/tfplan
+    expire_in: 1 day
+  when: manual
+
+# -------------------------------------------------------------------
+# Deploy — wartet auf manuelle Bestaetigung nach Plan-Review
+# TF_VAR_vcenter_password muss als masked+protected CI/CD Variable gesetzt sein
+# -------------------------------------------------------------------
+deploy:
+  stage: deploy
+  image: ghcr.io/opentofu/opentofu:latest
+  script:
+    - *tofu_init
+    - tofu apply tfplan
+  environment:
+    name: $CLUSTER_NAME
+  when: manual
+  needs: [plan]
+
+# -------------------------------------------------------------------
+# Destroy — loescht den gesamten Cluster
+# Nur manuell ausfuehrbar, benoetigt CLUSTER_NAME des Ziel-Clusters
+# -------------------------------------------------------------------
+destroy:
+  stage: destroy
+  image: ghcr.io/opentofu/opentofu:latest
+  script:
+    - *tofu_init
+    - tofu destroy -auto-approve
+        -var="cp_count=${CP_COUNT}"
+        -var="worker_count=${WORKER_COUNT}"
+        -var="haproxy_base_ip=${HAPROXY_BASE_IP}"
+        -var="cp_base_ip=${CP_BASE_IP}"
+        -var="worker_base_ip=${WORKER_BASE_IP}"
+  environment:
+    name: $CLUSTER_NAME
+    action: stop
+  when: manual
+  needs: []
