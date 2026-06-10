@@ -1,4 +1,4 @@
-# Modul-Struktur: vsphere-vm
+# Modul-Struktur: vsphere-vm & best-practice: Kleinschreibung 
 
 ## Problem
 
