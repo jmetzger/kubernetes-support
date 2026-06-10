@@ -8,6 +8,7 @@ Analyse, Best Practices und Verbesserungsvorschläge für das automatisierte Dep
 
 * [Code-Analyse: Was ist gut, was kann verbessert werden](opentofu-k8s/01-code-analyse.md)
 * [Multi-Cluster Self-Service via GitLab Formular](opentofu-k8s/02-multi-cluster-selfservice.md)
+* [ArgoCD Autopilot — Übung: GitOps vom ersten Tag](opentofu-k8s/03-argocd-autopilot.md)
 
 ### Persistent Storage
 
