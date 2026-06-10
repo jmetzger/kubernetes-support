@@ -11,6 +11,10 @@ Analyse, Best Practices und Verbesserungsvorschläge für das automatisierte Dep
 * [Multi-Cluster Self-Service via GitLab Formular](opentofu-k8s/02-multi-cluster-selfservice.md)
 * [ArgoCD Autopilot — Übung: GitOps vom ersten Tag](opentofu-k8s/03-argocd-autopilot.md)
 
+### Ansible Vault + GitLab CI/CD
+
+* [Komplettes Beispiel-Setup: Ansible Vault mit GitLab CI/CD](ansible-vault-example/SETUP.md)
+
 ### Persistent Storage
 
 * [HPE CSI Driver – iSCSI + Multipath auf Debian](kubernetes-csi/hpe-csi-iscsi-multipath.md)
