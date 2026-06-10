@@ -21,6 +21,8 @@ opentofu/k8s/workernode/main.tf     ← identischer Provider-Block + VM-Resource
 
 ```
 opentofu/
+  main.tf               ← root main.tf (bereits vorhanden, generische VM-Erstellung)
+  variables.tf
   modules/
     vsphere-vm/         ← einmal schreiben, dreimal verwenden
       main.tf
