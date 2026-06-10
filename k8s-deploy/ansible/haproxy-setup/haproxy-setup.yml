@@ -4,7 +4,7 @@
   become: true
 
   vars:
-    vip: "10.78.80.230"
+    vip: "{{ vip }}"
     interface: "ens192"
 
   tasks:

@@ -5,8 +5,8 @@
 
   vars:
     k8s_version: "1.35"
-    vip: "10.78.80.230"
-    pod_network_cidr: "10.78.81.0/24"
+    vip: "{{ vip }}"
+    pod_network_cidr: "192.168.0.0/16"
 
   tasks:
     - name: Warten bis SSH verfügbar ist
@@ -142,8 +142,8 @@
   become: true
 
   vars:
-    vip: "10.78.80.230"
-    pod_network_cidr: "10.78.81.0/24"
+    vip: "{{ vip }}"
+    pod_network_cidr: "192.168.0.0/16"
 
   tasks:
 
@@ -603,7 +603,7 @@
       replace:
         path: /home/ubuntu/custom-resources.yaml
         regexp: '192\.168\.0\.0/16'
-        replace: '10.78.81.0/24'
+        replace: '192.168.0.0/16'
 
     - name: Calico Custom Resources installieren
       shell: kubectl apply --validate=false -f /home/ubuntu/custom-resources.yaml

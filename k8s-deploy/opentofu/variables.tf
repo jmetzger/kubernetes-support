@@ -1,7 +1,7 @@
 # --- vSphere Verbindung ---
 variable "vcenter_server" {
   type    = string
-  default = "svr-poc-vcenter.mgmt.internal"
+  default = "vcenter.example.com"
 }
 
 variable "vcenter_user" {
@@ -17,22 +17,22 @@ variable "vcenter_password" {
 # --- vSphere Infrastruktur ---
 variable "datacenter" {
   type    = string
-  default = "I3s"
+  default = "dc-01"
 }
 
 variable "cluster" {
   type    = string
-  default = "I3s"
+  default = "cluster-01"
 }
 
 variable "datastore" {
   type    = string
-  default = "lun-rz1-v3010"
+  default = "datastore-01"
 }
 
 variable "network" {
   type    = string
-  default = "POCK8ST-V1080-80"
+  default = "VM Network"
 }
 
 variable "content_library" {
@@ -48,17 +48,17 @@ variable "template_name" {
 # --- Netzwerk ---
 variable "domain" {
   type    = string
-  default = "kube.isgus.de"
+  default = "k8s.example.com"
 }
 
 variable "gateway" {
   type    = string
-  default = "10.78.80.199"
+  default = "10.0.0.1"
 }
 
 variable "dns_server" {
   type    = string
-  default = "10.78.75.1"
+  default = "10.0.0.1"
 }
 
 # --- Control Plane ---
@@ -74,7 +74,7 @@ variable "cp_count" {
 
 variable "cp_base_ip" {
   type    = string
-  default = "10.78.80.220"
+  default = "10.0.0.10"
 }
 
 variable "cp_cpu" {
@@ -95,7 +95,7 @@ variable "cp_disk" {
 # --- HAProxy ---
 variable "haproxy_prefix" {
   type    = string
-  default = "k8s"
+  default = "lb"
 }
 
 variable "haproxy_count" {
@@ -105,7 +105,7 @@ variable "haproxy_count" {
 
 variable "haproxy_base_ip" {
   type    = string
-  default = "10.78.80.210"
+  default = "10.0.0.20"
 }
 
 # --- Workernode ---
@@ -121,7 +121,7 @@ variable "worker_count" {
 
 variable "worker_base_ip" {
   type    = string
-  default = "10.78.80.230"
+  default = "10.0.0.30"
 }
 
 variable "worker_cpu" {

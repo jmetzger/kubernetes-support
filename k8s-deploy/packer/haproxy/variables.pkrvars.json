@@ -1,10 +1,10 @@
 {
-  "vcenter_server":  "svr-poc-vcenter.mgmt.internal",
-  "vcenter_user":    "opentofu@vsphere.local",
+  "vcenter_server": "vcenter.example.com",
+  "vcenter_user": "opentofu@vsphere.local",
   "vcenter_password": "CHANGE_ME",
-  "datacenter":      "I3s",
-  "cluster":         "I3s",
-  "datastore":       "lun-rz1-v3010",
-  "network":         "POCK8ST-V1080-80",
-  "template_name":   "VMhaproxy"
+  "datacenter": "dc-01",
+  "cluster": "cluster-01",
+  "datastore": "datastore-01",
+  "network": "VM Network",
+  "template_name": "VMhaproxy"
 }

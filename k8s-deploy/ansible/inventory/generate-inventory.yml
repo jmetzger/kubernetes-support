@@ -1,5 +1,5 @@
 - name: Ansible Inventory generieren
-  hosts: svr-edv-otofu1
+  hosts: tofu-host
   gather_facts: false
   become: true
   become_user: root
