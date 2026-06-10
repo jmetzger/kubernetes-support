@@ -94,11 +94,6 @@ destroy:
   script:
     - !reference [.tofu_init, script]
     - tofu destroy -auto-approve
-        -var="cp_count=${CP_COUNT}"
-        -var="worker_count=${WORKER_COUNT}"
-        -var="haproxy_base_ip=${HAPROXY_BASE_IP}"
-        -var="cp_base_ip=${CP_BASE_IP}"
-        -var="worker_base_ip=${WORKER_BASE_IP}"
   environment:
     name: $CLUSTER_NAME
     action: stop
