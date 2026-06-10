@@ -21,43 +21,24 @@ opentofu/k8s/workernode/main.tf     ← identischer Provider-Block + VM-Resource
 
 ```
 opentofu/
-  main.tf               ← schon vorhanden, fuer generische Einzel-VMs (nicht K8s-spezifisch)
-  variables.tf          ← schon vorhanden
+  main.tf           ← GEAENDERT: nur noch provider-Block
+  control-plane.tf  ← NEU: module "control_plane"
+  haproxy.tf        ← NEU: module "haproxy"
+  workernode.tf     ← NEU: module "workernode"
+  variables.tf      ← GEAENDERT: alle Variablen konsolidiert
   modules/
-    vsphere-vm/         ← NEU: einmal schreiben, dreimal verwenden
+    vsphere-vm/     ← NEU: data sources + VM resource (kein Provider)
       main.tf
       variables.tf
       outputs.tf
-  k8s/
-    control-plane/
-      main.tf           ← GEAENDERT: provider + Modul-Aufruf statt 80 Zeilen
-      variables.tf
-    workernode/
-      main.tf           ← GEAENDERT: provider + Modul-Aufruf
-    haproxy/
-      main.tf           ← GEAENDERT: provider + Modul-Aufruf
 ```
 
+Ein einziges `tofu apply` in `opentofu/` deployed alles.
+
 ```hcl
-# k8s/control-plane/main.tf — statt 80 Zeilen nur noch:
-terraform {
-  required_providers {
-    vsphere = {
-      source  = "hashicorp/vsphere"
-      version = "~> 2.6"
-    }
-  }
-}
-
-provider "vsphere" {
-  user                 = var.vcenter_user
-  password             = var.vcenter_password
-  vsphere_server       = var.vcenter_server
-  allow_unverified_ssl = true
-}
-
+# control-plane.tf — statt 80 Zeilen nur noch:
 module "control_plane" {
-  source = "../../modules/vsphere-vm"
+  source = "./modules/vsphere-vm"
 
   datacenter      = var.datacenter
   cluster         = var.cluster
@@ -78,9 +59,8 @@ module "control_plane" {
 }
 ```
 
-**Hinweis:** Der Provider-Block bleibt pro Verzeichnis — jedes ist ein eigener OpenTofu State
-und wird unabhaengig deployed. Was das Modul eliminiert, sind die 6 duplizierten data sources
-und die VM-Resource. Detailliertes Beispiel: [04-modul-struktur-vsphere-vm.md](04-modul-struktur-vsphere-vm.md)
+Der Provider steht einmal in `main.tf` — alle drei Module erben ihn automatisch.
+Detailliertes Beispiel: [04-modul-struktur-vsphere-vm.md](04-modul-struktur-vsphere-vm.md)
 
 ---
 

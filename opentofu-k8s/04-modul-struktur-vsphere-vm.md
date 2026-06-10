@@ -1,8 +1,8 @@
-# Modul-Struktur: vsphere-vm & best-practice: Kleinschreibung 
+# Modul-Struktur: vsphere-vm
 
 ## Problem
 
-Provider-Block und data sources sind in jedem Unterverzeichnis identisch wiederholt:
+Provider-Block und data sources waren in jedem Unterverzeichnis identisch wiederholt:
 
 ```
 k8s/control-plane/main.tf  → provider + 6x data + resource
@@ -10,30 +10,151 @@ k8s/haproxy/main.tf        → provider + 6x data + resource  (Duplikat)
 k8s/workernode/main.tf     → provider + 6x data + resource  (Duplikat)
 ```
 
-Aenderung an einer Stelle (z.B. vSphere-Version) muss 3x gemacht werden.
+Ausserdem: drei separate States bedeuten drei `tofu apply` Aufrufe fuer ein
+vollstaendiges Cluster-Deployment.
 
-## Loesung: Modul
+## Loesung: Ein State, ein Provider, ein Apply
 
 ```
 opentofu/
+  main.tf           <- provider EINMAL
+  control-plane.tf  <- module "control_plane"
+  haproxy.tf        <- module "haproxy"
+  workernode.tf     <- module "workernode"
+  variables.tf      <- alle Variablen konsolidiert
   modules/
     vsphere-vm/
       main.tf       <- data sources + VM resource (kein Provider)
       variables.tf  <- alle Parameter
       outputs.tf    <- vm_names, vm_ips
-  k8s/
-    control-plane/
-      main.tf       <- provider + module-Aufruf
-    haproxy/
-      main.tf       <- provider + module-Aufruf
-    workernode/
-      main.tf       <- provider + module-Aufruf
+```
+
+Ein einziges `tofu apply` in `opentofu/` deployed HAProxy, Control Plane
+und Workernodes in einem Durchgang.
+
+## main.tf — Provider einmal
+
+```hcl
+terraform {
+  required_providers {
+    vsphere = {
+      source  = "hashicorp/vsphere"
+      version = "~> 2.6"
+    }
+  }
+}
+
+provider "vsphere" {
+  user                 = var.vcenter_user
+  password             = var.vcenter_password
+  vsphere_server       = var.vcenter_server
+  allow_unverified_ssl = true
+}
+```
+
+## control-plane.tf
+
+```hcl
+module "control_plane" {
+  source = "./modules/vsphere-vm"
+
+  datacenter      = var.datacenter
+  cluster         = var.cluster
+  datastore       = var.datastore
+  network         = var.network
+  content_library = var.content_library
+  template_name   = var.template_name
+  domain          = var.domain
+  gateway         = var.gateway
+  dns_server      = var.dns_server
+
+  vm_prefix = var.cp_prefix
+  vm_count  = var.cp_count
+  base_ip   = var.cp_base_ip
+  cpu       = var.cp_cpu
+  ram       = var.cp_ram
+  disk      = var.cp_disk
+}
+
+output "cp_names" {
+  value = module.control_plane.vm_names
+}
+
+output "cp_ips" {
+  value = module.control_plane.vm_ips
+}
+```
+
+## haproxy.tf
+
+```hcl
+module "haproxy" {
+  source = "./modules/vsphere-vm"
+
+  datacenter      = var.datacenter
+  cluster         = var.cluster
+  datastore       = var.datastore
+  network         = var.network
+  content_library = var.content_library
+  template_name   = var.template_name
+  domain          = var.domain
+  gateway         = var.gateway
+  dns_server      = var.dns_server
+
+  vm_prefix = "${var.haproxy_prefix}-lb"
+  vm_count  = var.haproxy_count
+  base_ip   = var.haproxy_base_ip
+  cpu       = 1
+  ram       = 2
+  disk      = 80
+}
+
+output "lb_names" {
+  value = module.haproxy.vm_names
+}
+
+output "lb_ips" {
+  value = module.haproxy.vm_ips
+}
+```
+
+## workernode.tf
+
+```hcl
+module "workernode" {
+  source = "./modules/vsphere-vm"
+
+  datacenter      = var.datacenter
+  cluster         = var.cluster
+  datastore       = var.datastore
+  network         = var.network
+  content_library = var.content_library
+  template_name   = var.template_name
+  domain          = var.domain
+  gateway         = var.gateway
+  dns_server      = var.dns_server
+
+  vm_prefix = var.worker_prefix
+  vm_count  = var.worker_count
+  base_ip   = var.worker_base_ip
+  cpu       = var.worker_cpu
+  ram       = var.worker_ram
+  disk      = var.worker_disk
+}
+
+output "worker_names" {
+  value = module.workernode.vm_names
+}
+
+output "worker_ips" {
+  value = module.workernode.vm_ips
+}
 ```
 
 ## modules/vsphere-vm/main.tf
 
 ```hcl
-# Kein provider-Block hier — der kommt vom Aufrufer
+# Kein provider-Block hier — kommt vom Aufrufer (main.tf)
 
 data "vsphere_datacenter" "dc" {
   name = var.datacenter
@@ -111,26 +232,21 @@ resource "vsphere_virtual_machine" "vm" {
 ## modules/vsphere-vm/variables.tf
 
 ```hcl
-# vSphere Verbindung
 variable "datacenter"      { type = string }
 variable "cluster"         { type = string }
 variable "datastore"       { type = string }
 variable "network"         { type = string }
 variable "content_library" { type = string }
 variable "template_name"   { type = string }
-
-# Netzwerk
-variable "domain"     { type = string }
-variable "gateway"    { type = string }
-variable "dns_server" { type = string }
-variable "base_ip"    { type = string }
-
-# VM
-variable "vm_prefix" { type = string }
-variable "vm_count"  { type = number }
-variable "cpu"       { type = number }
-variable "ram"       { type = number }  # in GB
-variable "disk"      { type = number }  # in GB
+variable "domain"          { type = string }
+variable "gateway"         { type = string }
+variable "dns_server"      { type = string }
+variable "base_ip"         { type = string }
+variable "vm_prefix"       { type = string }
+variable "vm_count"        { type = number }
+variable "cpu"             { type = number }
+variable "ram"             { type = number }
+variable "disk"            { type = number }
 ```
 
 ## modules/vsphere-vm/outputs.tf
@@ -145,170 +261,54 @@ output "vm_ips" {
 }
 ```
 
-## k8s/control-plane/main.tf (Aufrufer)
+## variables.tf — alle Variablen konsolidiert
 
 ```hcl
-terraform {
-  required_providers {
-    vsphere = {
-      source  = "hashicorp/vsphere"
-      version = "~> 2.6"
-    }
-  }
-}
+# vSphere Verbindung
+variable "vcenter_server"   { type = string; default = "svr-poc-vcenter.mgmt.internal" }
+variable "vcenter_user"     { type = string; default = "opentofu@vsphere.local" }
+variable "vcenter_password" { type = string; sensitive = true }
 
-provider "vsphere" {
-  user                 = var.vcenter_user
-  password             = var.vcenter_password
-  vsphere_server       = var.vcenter_server
-  allow_unverified_ssl = true
-}
+# vSphere Infrastruktur
+variable "datacenter"      { type = string; default = "I3s" }
+variable "cluster"         { type = string; default = "I3s" }
+variable "datastore"       { type = string; default = "lun-rz1-v3010" }
+variable "network"         { type = string; default = "POCK8ST-V1080-80" }
+variable "content_library" { type = string; default = "Packer-Templates" }
+variable "template_name"   { type = string; default = "VMk8s" }
 
-module "control_plane" {
-  source = "../../modules/vsphere-vm"
+# Netzwerk
+variable "domain"      { type = string; default = "kube.isgus.de" }
+variable "gateway"     { type = string; default = "10.78.80.199" }
+variable "dns_server"  { type = string; default = "10.78.75.1" }
 
-  datacenter      = var.datacenter
-  cluster         = var.cluster
-  datastore       = var.datastore
-  network         = var.network
-  content_library = var.content_library
-  template_name   = var.template_name
-  domain          = var.domain
-  gateway         = var.gateway
-  dns_server      = var.dns_server
+# Control Plane
+variable "cp_prefix"   { type = string; default = "cp" }
+variable "cp_count"    { type = number; default = 3 }
+variable "cp_base_ip"  { type = string; default = "10.78.80.220" }
+variable "cp_cpu"      { type = number; default = 4 }
+variable "cp_ram"      { type = number; default = 8 }
+variable "cp_disk"     { type = number; default = 40 }
 
-  vm_prefix = var.cp_prefix
-  vm_count  = var.cp_count
-  base_ip   = var.cp_base_ip
-  cpu       = var.cp_cpu
-  ram       = var.cp_ram
-  disk      = var.cp_disk
-}
+# HAProxy
+variable "haproxy_prefix"   { type = string; default = "k8s" }
+variable "haproxy_count"    { type = number; default = 2 }
+variable "haproxy_base_ip"  { type = string; default = "10.78.80.210" }
+
+# Workernode
+variable "worker_prefix"   { type = string; default = "worker" }
+variable "worker_count"    { type = number; default = 3 }
+variable "worker_base_ip"  { type = string; default = "10.78.80.230" }
+variable "worker_cpu"      { type = number; default = 2 }
+variable "worker_ram"      { type = number; default = 4 }
+variable "worker_disk"     { type = number; default = 40 }
 ```
 
-## k8s/haproxy/main.tf (Aufrufer)
+## Deployment
 
-```hcl
-terraform {
-  required_providers {
-    vsphere = {
-      source  = "hashicorp/vsphere"
-      version = "~> 2.6"
-    }
-  }
-}
-
-provider "vsphere" {
-  user                 = var.vcenter_user
-  password             = var.vcenter_password
-  vsphere_server       = var.vcenter_server
-  allow_unverified_ssl = true
-}
-
-module "haproxy" {
-  source = "../../modules/vsphere-vm"
-
-  datacenter      = var.datacenter
-  cluster         = var.cluster
-  datastore       = var.datastore
-  network         = var.network
-  content_library = var.content_library
-  template_name   = var.template_name
-  domain          = var.domain
-  gateway         = var.gateway
-  dns_server      = var.dns_server
-
-  vm_prefix = "${var.vm_prefix}-lb"
-  vm_count  = 2
-  base_ip   = var.node_base_ip
-  cpu       = 1
-  ram       = 2
-  disk      = 80
-}
+```bash
+cd opentofu/
+tofu init
+tofu plan
+tofu apply
 ```
-
-## k8s/workernode/main.tf (Aufrufer)
-
-```hcl
-terraform {
-  required_providers {
-    vsphere = {
-      source  = "hashicorp/vsphere"
-      version = "~> 2.6"
-    }
-  }
-}
-
-provider "vsphere" {
-  user                 = var.vcenter_user
-  password             = var.vcenter_password
-  vsphere_server       = var.vcenter_server
-  allow_unverified_ssl = true
-}
-
-module "workernode" {
-  source = "../../modules/vsphere-vm"
-
-  datacenter      = var.datacenter
-  cluster         = var.cluster
-  datastore       = var.datastore
-  network         = var.network
-  content_library = var.content_library
-  template_name   = var.template_name
-  domain          = var.domain
-  gateway         = var.gateway
-  dns_server      = var.dns_server
-
-  vm_prefix = var.worker_prefix
-  vm_count  = var.worker_count
-  base_ip   = var.worker_base_ip
-  cpu       = var.worker_cpu
-  ram       = var.worker_ram
-  disk      = var.worker_disk
-}
-```
-
-## Warum der Provider in jedem Verzeichnis bleibt
-
-Jedes Unterverzeichnis ist ein eigener OpenTofu State — control-plane, haproxy und
-workernode werden unabhaengig voneinander deployed. Deshalb braucht jedes seinen
-eigenen Provider-Block.
-
-Was das Modul eliminiert: die 6 duplizierten data sources und die VM-Resource.
-
-## Alternative: Provider einmal im Root
-
-Wenn alle Komponenten im selben State liegen sollen, kann der Provider einmal
-in einer top-level `main.tf` stehen:
-
-```
-opentofu/
-  main.tf          <- provider EINMAL hier
-  control-plane.tf <- module "control_plane" { source = "./modules/vsphere-vm" }
-  haproxy.tf       <- module "haproxy"        { source = "./modules/vsphere-vm" }
-  workernode.tf    <- module "workernode"      { source = "./modules/vsphere-vm" }
-  modules/
-    vsphere-vm/
-```
-
-```hcl
-# main.tf
-terraform {
-  required_providers {
-    vsphere = { source = "hashicorp/vsphere", version = "~> 2.6" }
-  }
-}
-
-provider "vsphere" {
-  user                 = var.vcenter_user
-  password             = var.vcenter_password
-  vsphere_server       = var.vcenter_server
-  allow_unverified_ssl = true
-}
-```
-
-**Vorteil:** Provider wirklich nur einmal — eine Stelle fuer Version und Credentials.
-
-**Nachteil:** `tofu apply` deployed immer alle Komponenten zusammen. Fuer einen
-gestaffelten K8s-Rollout (erst haproxy, dann control-plane, dann workernode) ist
-das problematisch — dann sind getrennte States die bessere Wahl.
