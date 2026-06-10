@@ -13,10 +13,124 @@ GitLab CI/CD:
   Run pipeline → .gitlab-ci.yml → tofu init → tofu apply
 ```
 
+---
+
+## Dateistruktur
+
+Die Pipeline ist in separate Dateien aufgeteilt — jeder Workflow fuer sich lesbar
+und aenderbar ohne die anderen zu beruehren:
+
+```
+.gitlab-ci.yml          ← stages, variables, include
+ci/
+  packer.yml            ← packer-k8s, packer-haproxy
+  opentofu.yml          ← plan, deploy, destroy
+```
+
+**Warum `include: local` statt alles in einer Datei:**
+Packer-Team und OpenTofu-Team koennen unabhaengig arbeiten.
+Ausserdem bleibt jede Datei ueberschaubar.
+
+```yaml
+# .gitlab-ci.yml — nur Struktur und Inputs
+include:
+  - local: 'ci/packer.yml'
+  - local: 'ci/opentofu.yml'
+```
+
+GitLab merged alle Dateien vor der Auswertung zu einer Konfiguration —
+`!reference` funktioniert deshalb auch ueber Dateigrenzen hinweg.
+
+---
+
+## Stages und Jobs
+
+```
+packer   →  packer-k8s      (manuell)
+             packer-haproxy  (manuell)
+
+plan     →  plan             (manuell)
+
+deploy   →  deploy           (manuell, braucht plan-Artefakt)
+
+destroy  →  destroy          (manuell, unabhaengig)
+```
+
+Alle Jobs sind `when: manual` — nur der gewuenschte Job wird angestossen.
+
+---
+
+## Shared Steps mit `!reference`
+
+Statt YAML-Ankern (`*tofu_init`) wird `!reference` verwendet — GitLab-nativ,
+fuegt die Befehle als flache Liste ein:
+
+```yaml
+# ci/opentofu.yml
+.tofu_init:
+  script:
+    - cd ${TF_ROOT}
+    - tofu init ...
+
+plan:
+  script:
+    - !reference [.tofu_init, script]   # fuegt die init-Befehle hier ein
+    - tofu plan ...
+```
+
+**Warum nicht `*tofu_init`:** Ein YAML-Anker auf eine Sequenz erzeugt
+als List-Item einen verschachtelten Block — GitLab CI erwartet aber eine
+flache Liste von Strings und wuerde die Befehle nicht ausfuehren.
+
+---
+
+## Das Formular — "Run pipeline" in GitLab
+
+Der Benutzer startet die Pipeline manuell und fuellt nur die Felder aus,
+die fuer den gewuenschten Job benoetigt werden:
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Run pipeline on branch: main                       │
+│                                                     │
+│  Packer:                                            │
+│  K8S_TEMPLATE_NAME     [VMk8s                     ] │
+│  HAPROXY_TEMPLATE_NAME [VMhaproxy                 ] │
+│                                                     │
+│  OpenTofu:                                          │
+│  CLUSTER_NAME          [prod-k8s-1                ] │
+│  CP_COUNT              [3                         ] │
+│  WORKER_COUNT          [3                         ] │
+│  HAPROXY_BASE_IP       [10.0.0.20                 ] │
+│  CP_BASE_IP            [10.0.0.10                 ] │
+│  WORKER_BASE_IP        [10.0.0.30                 ] │
+│                                                     │
+│                    [ Run pipeline ]                 │
+└─────────────────────────────────────────────────────┘
+```
+
+---
+
+## Credentials — einmalig in GitLab setzen
+
+Settings → CI/CD → Variables, **masked + protected**:
+
+| Variable                  | Verwendet von       |
+|---------------------------|---------------------|
+| `TF_VAR_vcenter_password` | OpenTofu + Packer   |
+
+Packer holt sich das Passwort ueber `PKR_VAR_vcenter_password: $TF_VAR_vcenter_password`
+im Job — ein Secret fuer beide Tools.
+
+Alle anderen vSphere-Werte (Server, User, Datacenter etc.) haben
+Defaults in `variables.tf` und `variables.pkrvars.json`.
+
+---
+
 ## GitLab State Backend — automatisch
 
 Wenn der CI-Job auf demselben GitLab-Server laeuft, stellt GitLab automatisch
-alle nötigen Variablen bereit — kein einziges Secret muss manuell konfiguriert werden:
+alle nötigen Variablen bereit:
 
 | Variable          | Bedeutung       | Woher        |
 |-------------------|-----------------|--------------|
@@ -27,116 +141,59 @@ alle nötigen Variablen bereit — kein einziges Secret muss manuell konfigurier
 Der State wird direkt im GitLab-Projekt gespeichert und ist unter
 *Operate → Terraform States* sichtbar.
 
+---
+
 ## Multi-Cluster: ein Repo, viele Cluster
 
 Jeder Cluster bekommt seinen eigenen State ueber den `CLUSTER_NAME`:
 
 ```
-STATE_NAME = "${CLUSTER_NAME}"
-
 gitlab.example.com/.../terraform/state/prod-k8s-1
 gitlab.example.com/.../terraform/state/prod-k8s-2
 gitlab.example.com/.../terraform/state/dev-k8s-1
 ```
 
-## Das Formular — "Run pipeline" in GitLab
-
-Der Benutzer startet die Pipeline manuell und fuellt die Variablen aus:
-
-```
-┌─────────────────────────────────────────┐
-│  Run pipeline on branch: main           │
-│                                         │
-│  Variables:                             │
-│  CLUSTER_NAME      [prod-k8s-1        ] │
-│  CP_COUNT          [3                 ] │
-│  WORKER_COUNT      [5                 ] │
-│  HAPROXY_BASE_IP   [10.0.0.20         ] │
-│  CP_BASE_IP        [10.0.0.10         ] │
-│  WORKER_BASE_IP    [10.0.0.30         ] │
-│                                         │
-│              [ Run pipeline ]           │
-└─────────────────────────────────────────┘
-```
-
-## .gitlab-ci.yml
-
-```yaml
-stages:
-  - plan
-  - deploy
-
-variables:
-  TF_ROOT: opentofu/
-  # CLUSTER_NAME wird beim "Run pipeline" als Variable mitgegeben
-  # und bestimmt den State-Namen — jeder Cluster hat seinen eigenen State
-
-.tofu_init: &tofu_init
-  - cd ${TF_ROOT}
-  - tofu init
-      -backend-config="address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${CLUSTER_NAME}"
-      -backend-config="lock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${CLUSTER_NAME}/lock"
-      -backend-config="unlock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${CLUSTER_NAME}/lock"
-      -backend-config="lock_method=POST"
-      -backend-config="unlock_method=DELETE"
-      -backend-config="username=gitlab-ci-token"
-      -backend-config="password=${CI_JOB_TOKEN}"
-
-plan:
-  stage: plan
-  image: ghcr.io/opentofu/opentofu:latest
-  script:
-    - *tofu_init
-    - tofu plan
-        -var="cp_count=${CP_COUNT}"
-        -var="worker_count=${WORKER_COUNT}"
-        -var="haproxy_base_ip=${HAPROXY_BASE_IP}"
-        -var="cp_base_ip=${CP_BASE_IP}"
-        -var="worker_base_ip=${WORKER_BASE_IP}"
-        -out=tfplan
-  artifacts:
-    paths:
-      - ${TF_ROOT}/tfplan
-  when: manual
-
-deploy:
-  stage: deploy
-  image: ghcr.io/opentofu/opentofu:latest
-  script:
-    - *tofu_init
-    - tofu apply tfplan
-  when: manual
-  needs: [plan]
-```
-
-## vSphere Credentials — einzige feste CI/CD Variable
-
-Das einzige Secret das manuell in GitLab gesetzt werden muss
-(Settings → CI/CD → Variables, masked + protected):
-
-| Variable                  | Wert                |
-|---------------------------|---------------------|
-| `TF_VAR_vcenter_password` | geheimes-passwort   |
-
-Alle anderen vSphere-Werte (Server, User, Datacenter etc.) haben
-Defaults in `variables.tf` und koennen per `TF_VAR_*` ueberschrieben werden.
+---
 
 ## Ablauf
 
+### Packer — VM-Images bauen (einmalig oder bei Updates)
+
 ```
 1. "Run pipeline" starten
-   Formular ausfuellen: CLUSTER_NAME, CP_COUNT, IPs...
+   K8S_TEMPLATE_NAME und HAPROXY_TEMPLATE_NAME pruefen
          ↓
-2. plan-Job laeuft
+2. packer-k8s anstossen
+   Baut VMk8s-Image in vSphere Content Library
+         ↓
+3. packer-haproxy anstossen
+   Baut VMhaproxy-Image in vSphere Content Library
+```
+
+### OpenTofu — Cluster deployen
+
+```
+1. "Run pipeline" starten
+   CLUSTER_NAME, CP_COUNT, IPs ausfuellen
+         ↓
+2. plan anstossen
    tofu plan zeigt was erstellt wird
-   Plan wird als Artefakt gespeichert
+   Plan wird als Artefakt gespeichert (1 Tag gueltig)
          ↓
-3. deploy-Job wartet auf manuelle Bestaetigung
-   Jemand prueft den Plan und klickt "Play"
-         ↓
-4. tofu apply fuehrt exakt den geprueften Plan aus
+3. deploy anstossen (nach Plan-Review)
+   tofu apply fuehrt exakt den geprueften Plan aus
    HAProxy + Control Plane + Workernodes werden erstellt
          ↓
-5. State wird in GitLab unter dem CLUSTER_NAME gespeichert
-   Naechstes apply fuer diesen Cluster kennt den Zustand
+4. State wird in GitLab unter dem CLUSTER_NAME gespeichert
+```
+
+### OpenTofu — Cluster loeschen
+
+```
+1. "Run pipeline" starten
+   CLUSTER_NAME des Ziel-Clusters eintragen
+         ↓
+2. destroy anstossen
+   tofu destroy liest aus dem State was geloescht wird
+   Keine -var Flags noetig — alles steht im State
 ```
