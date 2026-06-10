@@ -5,9 +5,9 @@
 Provider-Block und data sources sind in jedem Unterverzeichnis identisch wiederholt:
 
 ```
-k8s/Control-Plane/main.tf  → provider + 6x data + resource
-k8s/HAProxy/main.tf        → provider + 6x data + resource  (Duplikat)
-k8s/Workernode/main.tf     → provider + 6x data + resource  (Duplikat)
+k8s/control-plane/main.tf  → provider + 6x data + resource
+k8s/haproxy/main.tf        → provider + 6x data + resource  (Duplikat)
+k8s/workernode/main.tf     → provider + 6x data + resource  (Duplikat)
 ```
 
 Aenderung an einer Stelle (z.B. vSphere-Version) muss 3x gemacht werden.
@@ -22,11 +22,11 @@ opentofu/
       variables.tf  <- alle Parameter
       outputs.tf    <- vm_names, vm_ips
   k8s/
-    Control-Plane/
+    control-plane/
       main.tf       <- provider + module-Aufruf
-    HAProxy/
+    haproxy/
       main.tf       <- provider + module-Aufruf
-    Workernode/
+    workernode/
       main.tf       <- provider + module-Aufruf
 ```
 
@@ -145,7 +145,7 @@ output "vm_ips" {
 }
 ```
 
-## k8s/Control-Plane/main.tf (Aufrufer)
+## k8s/control-plane/main.tf (Aufrufer)
 
 ```hcl
 terraform {
@@ -186,7 +186,7 @@ module "control_plane" {
 }
 ```
 
-## k8s/HAProxy/main.tf (Aufrufer)
+## k8s/haproxy/main.tf (Aufrufer)
 
 ```hcl
 terraform {
@@ -227,7 +227,7 @@ module "haproxy" {
 }
 ```
 
-## k8s/Workernode/main.tf (Aufrufer)
+## k8s/workernode/main.tf (Aufrufer)
 
 ```hcl
 terraform {
@@ -270,8 +270,8 @@ module "workernode" {
 
 ## Warum der Provider in jedem Verzeichnis bleibt
 
-Jedes Unterverzeichnis ist ein eigener OpenTofu State — Control-Plane, HAProxy und
-Workernode werden unabhaengig voneinander deployed. Deshalb braucht jedes seinen
+Jedes Unterverzeichnis ist ein eigener OpenTofu State — control-plane, haproxy und
+workernode werden unabhaengig voneinander deployed. Deshalb braucht jedes seinen
 eigenen Provider-Block.
 
 Was im Modul steckt und nicht mehr dupliziert ist: die 6 data sources und die
