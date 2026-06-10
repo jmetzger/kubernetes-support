@@ -1,0 +1,30 @@
+# Packer — VM Gold Images bauen
+#
+# Voraussetzung: TF_VAR_vcenter_password als masked+protected CI/CD Variable gesetzt
+# Inputs: K8S_TEMPLATE_NAME, HAPROXY_TEMPLATE_NAME (aus .gitlab-ci.yml)
+
+.packer_init:
+  script:
+    - packer init .
+
+packer-k8s:
+  stage: packer
+  image: hashicorp/packer:latest
+  variables:
+    PKR_VAR_vcenter_password: $TF_VAR_vcenter_password
+    PKR_VAR_template_name: $K8S_TEMPLATE_NAME
+  script:
+    - !reference [.packer_init, script]
+    - packer build k8s-deploy/packer/k8s/
+  when: manual
+
+packer-haproxy:
+  stage: packer
+  image: hashicorp/packer:latest
+  variables:
+    PKR_VAR_vcenter_password: $TF_VAR_vcenter_password
+    PKR_VAR_template_name: $HAPROXY_TEMPLATE_NAME
+  script:
+    - !reference [.packer_init, script]
+    - packer build k8s-deploy/packer/haproxy/
+  when: manual

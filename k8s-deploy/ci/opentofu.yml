@@ -1,0 +1,74 @@
+# OpenTofu — K8s Cluster provisionieren
+#
+# Voraussetzung: TF_VAR_vcenter_password als masked+protected CI/CD Variable gesetzt
+# Inputs: CLUSTER_NAME, CP_COUNT, WORKER_COUNT, *_BASE_IP (aus .gitlab-ci.yml)
+# Reihenfolge: plan → deploy (braucht tfplan-Artefakt aus plan)
+# Destroy laeuft unabhaengig direkt gegen den State.
+
+# -------------------------------------------------------------------
+# Shared: tofu init mit GitLab State Backend
+# CI_API_V4_URL, CI_PROJECT_ID und CI_JOB_TOKEN sind automatisch verfuegbar
+# -------------------------------------------------------------------
+.tofu_init:
+  script:
+    - cd ${TF_ROOT}
+    - tofu init
+        -backend-config="address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${CLUSTER_NAME}"
+        -backend-config="lock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${CLUSTER_NAME}/lock"
+        -backend-config="unlock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${CLUSTER_NAME}/lock"
+        -backend-config="lock_method=POST"
+        -backend-config="unlock_method=DELETE"
+        -backend-config="username=gitlab-ci-token"
+        -backend-config="password=${CI_JOB_TOKEN}"
+
+# -------------------------------------------------------------------
+# Plan — zeigt was erstellt wird, speichert tfplan als Artefakt
+# -------------------------------------------------------------------
+plan:
+  stage: plan
+  image: ghcr.io/opentofu/opentofu:latest
+  script:
+    - !reference [.tofu_init, script]
+    - tofu plan
+        -var="cp_count=${CP_COUNT}"
+        -var="worker_count=${WORKER_COUNT}"
+        -var="haproxy_base_ip=${HAPROXY_BASE_IP}"
+        -var="cp_base_ip=${CP_BASE_IP}"
+        -var="worker_base_ip=${WORKER_BASE_IP}"
+        -out=tfplan
+  artifacts:
+    name: "tfplan-${CLUSTER_NAME}"
+    paths:
+      - ${TF_ROOT}/tfplan
+    expire_in: 1 day
+  when: manual
+
+# -------------------------------------------------------------------
+# Deploy — wendet den gespeicherten Plan an (kein erneutes Plan)
+# -------------------------------------------------------------------
+deploy:
+  stage: deploy
+  image: ghcr.io/opentofu/opentofu:latest
+  script:
+    - !reference [.tofu_init, script]
+    - tofu apply tfplan
+  environment:
+    name: $CLUSTER_NAME
+  when: manual
+  needs: [plan]
+
+# -------------------------------------------------------------------
+# Destroy — loescht den Cluster anhand des State
+# Nur CLUSTER_NAME benoetigt — alles andere steht im State
+# -------------------------------------------------------------------
+destroy:
+  stage: destroy
+  image: ghcr.io/opentofu/opentofu:latest
+  script:
+    - !reference [.tofu_init, script]
+    - tofu destroy -auto-approve
+  environment:
+    name: $CLUSTER_NAME
+    action: stop
+  when: manual
+  needs: []
