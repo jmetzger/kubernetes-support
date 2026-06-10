@@ -36,10 +36,10 @@ k8s-deploy/
 
 ## Packer — Gold Images
 
-| Verzeichnis | Image | Enthält |
+| Datei | Image | Enthält |
 |---|---|---|
-| [packer/k8s/](packer/k8s/) | VMk8s | containerd, kubeadm, kubelet, kubectl |
-| [packer/haproxy/](packer/haproxy/) | VMhaproxy | haproxy, keepalived |
+| [packer/k8s/ubuntu.pkr.hcl](packer/k8s/ubuntu.pkr.hcl) | VMk8s | containerd, kubeadm, kubelet, kubectl |
+| [packer/haproxy/ubuntu.pkr.hcl](packer/haproxy/ubuntu.pkr.hcl) | VMhaproxy | haproxy, keepalived |
 | [packer/scripts/](packer/scripts/) | shared | Provisioner-Scripts für beide Images |
 
 ## OpenTofu — Cluster provisionieren
