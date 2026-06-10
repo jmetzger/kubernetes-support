@@ -12,6 +12,7 @@ Analyse, Best Practices und Verbesserungsvorschläge für das automatisierte Dep
 * [Multi-Cluster Self-Service via GitLab Formular](opentofu-k8s/02-multi-cluster-selfservice.md)
 * [ArgoCD Autopilot — Übung: GitOps vom ersten Tag](opentofu-k8s/03-argocd-autopilot.md)
 * [Modul-Struktur: vsphere-vm (DRY-Refactoring)](opentofu-k8s/04-modul-struktur-vsphere-vm.md)
+* [GitLab CI/CD Deployment mit OpenTofu](opentofu-k8s/05-gitlab-cicd-deployment.md)
 
 ### Ansible Vault + GitLab CI/CD
 
