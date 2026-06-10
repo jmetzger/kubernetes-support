@@ -8,6 +8,7 @@ Analyse, Best Practices und Verbesserungsvorschläge für das automatisierte Dep
 
 * [Code-Analyse: Übersicht](opentofu-k8s/01-code-analyse.md)
 * [Was gut gemacht ist — Best Practices mit Erklärungen](opentofu-k8s/01a-was-gut-ist.md)
+* [Was verbessert werden sollte](opentofu-k8s/01b-was-verbessert-werden-sollte.md)
 * [Multi-Cluster Self-Service via GitLab Formular](opentofu-k8s/02-multi-cluster-selfservice.md)
 * [ArgoCD Autopilot — Übung: GitOps vom ersten Tag](opentofu-k8s/03-argocd-autopilot.md)
 * [Modul-Struktur: vsphere-vm (DRY-Refactoring)](opentofu-k8s/04-modul-struktur-vsphere-vm.md)

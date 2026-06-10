@@ -12,9 +12,9 @@ Punkte die funktionieren, aber mittel- bis langfristig Probleme verursachen.
 
 **Aktuell:**
 ```
-opentofu/k8s/Control-Plane/main.tf  ← Provider-Block + VM-Resource
-opentofu/k8s/HAProxy/main.tf        ← identischer Provider-Block + VM-Resource
-opentofu/k8s/Workernode/main.tf     ← identischer Provider-Block + VM-Resource
+opentofu/k8s/control-plane/main.tf  ← Provider-Block + VM-Resource
+opentofu/k8s/haproxy/main.tf        ← identischer Provider-Block + VM-Resource
+opentofu/k8s/workernode/main.tf     ← identischer Provider-Block + VM-Resource
 ```
 
 **Lösung — Modul-Struktur:**
@@ -28,7 +28,7 @@ opentofu/
       outputs.tf
   k8s/
     control-plane/
-      main.tf           ← nur noch Modul-Aufruf
+      main.tf           ← provider + Modul-Aufruf
       variables.tf
     workernode/
       main.tf
@@ -38,17 +38,32 @@ opentofu/
 
 ```hcl
 # k8s/control-plane/main.tf — statt 80 Zeilen nur noch:
+terraform {
+  required_providers {
+    vsphere = { source = "hashicorp/vsphere", version = "~> 2.6" }
+  }
+}
+
+provider "vsphere" {
+  user                 = var.vcenter_user
+  password             = var.vcenter_password
+  vsphere_server       = var.vcenter_server
+  allow_unverified_ssl = true
+}
+
 module "controlplane" {
-  source     = "../../modules/vsphere-vm"
-  vm_prefix  = var.cp_prefix
-  vm_count   = var.cp_count
-  vm_cpu     = var.cp_cpu
-  vm_ram     = var.cp_ram * 1024
-  base_ip    = var.cp_base_ip
+  source    = "../../modules/vsphere-vm"
+  vm_prefix = var.cp_prefix
+  vm_count  = var.cp_count
+  cpu       = var.cp_cpu
+  ram       = var.cp_ram
+  base_ip   = var.cp_base_ip
 }
 ```
 
-**Praktisch:** Provider-Version nur noch in `modules/vsphere-vm/main.tf` ändern — alle drei Komponenten übernehmen es automatisch.
+**Hinweis:** Der Provider-Block bleibt pro Verzeichnis — jedes ist ein eigener OpenTofu State
+und wird unabhaengig deployed. Was das Modul eliminiert, sind die 6 duplizierten data sources
+und die VM-Resource. Detailliertes Beispiel: [04-modul-struktur-vsphere-vm.md](04-modul-struktur-vsphere-vm.md)
 
 ---
 

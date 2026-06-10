@@ -274,5 +274,41 @@ Jedes Unterverzeichnis ist ein eigener OpenTofu State — control-plane, haproxy
 workernode werden unabhaengig voneinander deployed. Deshalb braucht jedes seinen
 eigenen Provider-Block.
 
-Was im Modul steckt und nicht mehr dupliziert ist: die 6 data sources und die
-VM-Resource.
+Was das Modul eliminiert: die 6 duplizierten data sources und die VM-Resource.
+
+## Alternative: Provider einmal im Root
+
+Wenn alle Komponenten im selben State liegen sollen, kann der Provider einmal
+in einer top-level `main.tf` stehen:
+
+```
+opentofu/
+  main.tf          <- provider EINMAL hier
+  control-plane.tf <- module "control_plane" { source = "./modules/vsphere-vm" }
+  haproxy.tf       <- module "haproxy"        { source = "./modules/vsphere-vm" }
+  workernode.tf    <- module "workernode"      { source = "./modules/vsphere-vm" }
+  modules/
+    vsphere-vm/
+```
+
+```hcl
+# main.tf
+terraform {
+  required_providers {
+    vsphere = { source = "hashicorp/vsphere", version = "~> 2.6" }
+  }
+}
+
+provider "vsphere" {
+  user                 = var.vcenter_user
+  password             = var.vcenter_password
+  vsphere_server       = var.vcenter_server
+  allow_unverified_ssl = true
+}
+```
+
+**Vorteil:** Provider wirklich nur einmal — eine Stelle fuer Version und Credentials.
+
+**Nachteil:** `tofu apply` deployed immer alle Komponenten zusammen. Fuer einen
+gestaffelten K8s-Rollout (erst haproxy, dann control-plane, dann workernode) ist
+das problematisch — dann sind getrennte States die bessere Wahl.
