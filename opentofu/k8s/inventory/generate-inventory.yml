@@ -1,0 +1,69 @@
+- name: Ansible Inventory generieren
+  hosts: svr-edv-otofu1
+  gather_facts: false
+  become: true
+  become_user: root
+
+  tasks:
+    - name: Inventory Verzeichnis anlegen
+      file:
+        path: /opt/tofu/k8s/inventory
+        state: directory
+        mode: '0755'
+
+    - name: HAProxy JSON laden
+      slurp:
+        src: /opt/tofu/k8s/inventory/haproxy.json
+      register: haproxy_json
+
+    - name: CP JSON laden
+      slurp:
+        src: /opt/tofu/k8s/inventory/cp.json
+      register: cp_json
+
+    - name: Worker JSON laden
+      slurp:
+        src: /opt/tofu/k8s/inventory/worker.json
+      register: worker_json
+
+    - name: Variablen setzen
+      set_fact:
+        haproxy_data: "{{ haproxy_json.content | b64decode | from_json }}"
+        cp_data: "{{ cp_json.content | b64decode | from_json }}"
+        worker_data: "{{ worker_json.content | b64decode | from_json }}"
+
+    - name: Ansible Inventory generieren
+      copy:
+        dest: /opt/tofu/k8s/inventory/hosts.ini
+        content: |
+          [loadbalancer]
+          {% for i in range(haproxy_data.lb_names.value | length) %}
+          {{ haproxy_data.lb_names.value[i] }} ansible_host={{ haproxy_data.lb_ips.value[i] }}
+          {% endfor %}
+
+          [controlplane]
+          {% for i in range(cp_data.cp_names.value | length) %}
+          {{ cp_data.cp_names.value[i] }} ansible_host={{ cp_data.cp_ips.value[i] }}
+          {% endfor %}
+
+          [workers]
+          {% for i in range(worker_data.worker_names.value | length) %}
+          {{ worker_data.worker_names.value[i] }} ansible_host={{ worker_data.worker_ips.value[i] }}
+          {% endfor %}
+
+          [k8s_cluster:children]
+          controlplane
+          workers
+
+          [all:vars]
+          ansible_user=ubuntu
+          ansible_ssh_private_key_file=~/.ssh/id_ed25519
+          ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+
+    - name: Inventory anzeigen
+      command: cat /opt/tofu/k8s/inventory/hosts.ini
+      register: inventory_output
+
+    - name: Inventory ausgeben
+      debug:
+        msg: "{{ inventory_output.stdout_lines }}"

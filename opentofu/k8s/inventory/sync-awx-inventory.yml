@@ -1,0 +1,130 @@
+---
+- name: AWX Inventory aus hosts.ini befüllen
+  hosts: svr-edv-otofu1
+  gather_facts: false
+  become: false
+
+  vars:
+    awx_url: "https://awx.isgus.de"
+    awx_token: "{{ awx_api_token }}"
+    inventory_name: "OpenTofu Server"
+    hosts_ini: "/opt/tofu/k8s/inventory/hosts.ini"
+    ansible_user_name: "ubuntu"
+
+  tasks:
+    - name: hosts.ini einlesen
+      slurp:
+        src: "{{ hosts_ini }}"
+      register: hosts_file
+
+    - name: Inventory ID aus AWX holen
+      uri:
+        url: "{{ awx_url }}/api/v2/inventories/?name={{ inventory_name | urlencode }}"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ awx_token }}"
+          Content-Type: "application/json"
+        validate_certs: false
+      register: inventory_response
+
+    - name: Inventory ID speichern
+      set_fact:
+        inventory_id: "{{ inventory_response.json.results[0].id }}"
+
+    - name: Hosts aus hosts.ini parsen
+      set_fact:
+        parsed_hosts: "{{ parsed_hosts | default([]) + [{'name': item | regex_search('^(\\S+)', '\\1') | first, 'ansible_host': item | regex_search('ansible_host=(\\S+)', '\\1') | first, 'group': current_group}] }}"
+      loop: "{{ (hosts_file.content | b64decode).split('\n') }}"
+      when: "'ansible_host=' in item"
+      vars:
+        current_group: >-
+          {%- set lines = (hosts_file.content | b64decode).split('\n') -%}
+          {%- set idx = lines.index(item) -%}
+          {%- set group = namespace(name='') -%}
+          {%- for i in range(idx, -1, -1) -%}
+            {%- if lines[i] | regex_search('^\[\w+\]') and ':' not in lines[i] and group.name == '' -%}
+              {%- set group.name = lines[i] | regex_replace('^\[', '') | regex_replace('\]', '') -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {{ group.name }}
+
+    - name: Geparste Hosts anzeigen
+      debug:
+        msg: "{{ parsed_hosts }}"
+
+    - name: Host in AWX anlegen oder aktualisieren
+      uri:
+        url: "{{ awx_url }}/api/v2/inventories/{{ inventory_id }}/hosts/"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ awx_token }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          name: "{{ item.name }}"
+          variables: "ansible_host: {{ item.ansible_host }}"
+        validate_certs: false
+        status_code: [200, 201, 400]
+      register: host_create_response
+      loop: "{{ parsed_hosts }}"
+
+    - name: Host ID holen falls bereits vorhanden
+      uri:
+        url: "{{ awx_url }}/api/v2/inventories/{{ inventory_id }}/hosts/?name={{ item.name }}"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ awx_token }}"
+          Content-Type: "application/json"
+        validate_certs: false
+      register: host_id_response
+      loop: "{{ parsed_hosts }}"
+
+    - name: Host Variables aktualisieren falls bereits vorhanden
+      uri:
+        url: "{{ awx_url }}/api/v2/hosts/{{ item.json.results[0].id }}/"
+        method: PATCH
+        headers:
+          Authorization: "Bearer {{ awx_token }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          variables: "ansible_host: {{ parsed_hosts[idx].ansible_host }}"
+        validate_certs: false
+        status_code: [200, 201]
+      loop: "{{ host_id_response.results }}"
+      loop_control:
+        index_var: idx
+      when: item.json.count > 0
+
+    - name: Gruppe ID für jeden Host holen
+      uri:
+        url: "{{ awx_url }}/api/v2/inventories/{{ inventory_id }}/groups/?name={{ item.group }}"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ awx_token }}"
+          Content-Type: "application/json"
+        validate_certs: false
+      register: group_id_response
+      loop: "{{ parsed_hosts }}"
+
+    - name: Host zur Gruppe hinzufügen
+      uri:
+        url: "{{ awx_url }}/api/v2/groups/{{ group_id_response.results[idx].json.results[0].id | int }}/hosts/"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ awx_token }}"
+          Content-Type: "application/json"
+        body: "{{ {'id': host_id_response.results[idx].json.results[0].id | int} | to_json }}"
+        body_format: json
+        validate_certs: false
+        status_code: [200, 201, 204]
+      loop: "{{ parsed_hosts }}"
+      loop_control:
+        index_var: idx
+      when:
+        - group_id_response.results[idx].json.count > 0
+        - host_id_response.results[idx].json.count > 0
+
+    - name: Sync abgeschlossen
+      debug:
+        msg: "AWX Inventory erfolgreich synchronisiert — {{ parsed_hosts | length }} Hosts in {{ parsed_hosts | map(attribute='group') | unique | list | length }} Gruppen"

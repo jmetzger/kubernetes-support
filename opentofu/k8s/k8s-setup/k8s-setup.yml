@@ -1,0 +1,626 @@
+- name: Kubernetes Voraussetzungen installieren
+  hosts: k8s_cluster
+  gather_facts: true
+  become: true
+
+  vars:
+    k8s_version: "1.35"
+    vip: "10.78.80.230"
+    pod_network_cidr: "10.78.81.0/24"
+
+  tasks:
+    - name: Warten bis SSH verfügbar ist
+      wait_for_connection:
+        delay: 30
+        timeout: 300
+
+    - name: Facts sammeln
+      setup:
+
+    - name: Swap deaktivieren
+      command: swapoff -a
+      changed_when: false
+
+    - name: Swap dauerhaft deaktivieren
+      replace:
+        path: /etc/fstab
+        regexp: '^([^#].*\sswap\s.*)$'
+        replace: '# \1'
+
+    - name: Swap Datei entfernen
+      file:
+        path: /swap.img
+        state: absent
+
+    - name: Kernel Module laden
+      command: modprobe {{ item }}
+      loop:
+        - overlay
+        - br_netfilter
+      changed_when: false
+
+    - name: Kernel Module dauerhaft laden
+      copy:
+        dest: /etc/modules-load.d/k8s.conf
+        content: |
+          overlay
+          br_netfilter
+
+    - name: Sysctl Parameter setzen
+      sysctl:
+        name: "{{ item.key }}"
+        value: "{{ item.value }}"
+        state: present
+        reload: true
+      loop:
+        - { key: "net.bridge.bridge-nf-call-iptables",  value: "1" }
+        - { key: "net.bridge.bridge-nf-call-ip6tables", value: "1" }
+        - { key: "net.ipv4.ip_forward",                 value: "1" }
+
+    - name: containerd installieren
+      apt:
+        name: containerd
+        state: present
+        update_cache: true
+
+    - name: containerd Konfigurationsverzeichnis anlegen
+      file:
+        path: /etc/containerd
+        state: directory
+        mode: '0755'
+
+    - name: containerd Standardkonfiguration erstellen
+      shell: containerd config default > /etc/containerd/config.toml
+      args:
+        creates: /etc/containerd/config.toml
+
+    - name: SystemdCgroup aktivieren
+      replace:
+        path: /etc/containerd/config.toml
+        regexp: 'SystemdCgroup = false'
+        replace: 'SystemdCgroup = true'
+      notify: containerd restart
+
+    - name: containerd aktivieren
+      systemd:
+        name: containerd
+        enabled: true
+        state: started
+
+    - name: APT Keyring Verzeichnis anlegen
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Kubernetes GPG Key hinzufügen
+      shell: |
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/Release.key | \
+        gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      args:
+        creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+    - name: Kubernetes APT Repository hinzufügen
+      copy:
+        dest: /etc/apt/sources.list.d/kubernetes.list
+        content: |
+          deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/ /
+
+    - name: kubeadm kubelet kubectl installieren
+      apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: present
+        update_cache: true
+
+    - name: Pakete auf hold setzen
+      dpkg_selections:
+        name: "{{ item }}"
+        selection: hold
+      loop:
+        - kubelet
+        - kubeadm
+        - kubectl
+
+    - name: kubelet aktivieren
+      systemd:
+        name: kubelet
+        enabled: true
+        state: started
+
+  handlers:
+    - name: containerd restart
+      systemd:
+        name: containerd
+        state: restarted
+
+- name: Erste Control Plane initialisieren
+  hosts: controlplane[0]
+  gather_facts: true
+  become: true
+
+  vars:
+    vip: "10.78.80.230"
+    pod_network_cidr: "10.78.81.0/24"
+
+  tasks:
+
+    - name: containerd sicherstellen 
+      systemd:
+        name: containerd
+        state: started
+        enabled: true
+
+    - name: Warten bis containerd bereit ist
+      wait_for:
+        path: /var/run/containerd/containerd.sock
+        timeout: 60
+
+    - name: Prüfen ob Cluster bereits existiert
+      stat:
+        path: /etc/kubernetes/admin.conf
+      register: k8s_config
+
+    - name: Prüfen ob Cluster bereits existiert
+      stat:
+        path: /etc/kubernetes/admin.conf
+      register: k8s_config
+
+    - name: kubeadm reset
+      command: kubeadm reset -f
+      ignore_errors: true
+      when: not k8s_config.stat.exists
+
+    - name: Verzeichnisse bereinigen
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/kubernetes/
+        - /var/lib/etcd/
+        - /var/lib/kubelet/
+        - /etc/cni/net.d/
+      when: not k8s_config.stat.exists
+
+    - name: containerd neu starten
+      systemd:
+        name: containerd
+        state: restarted
+      when: not k8s_config.stat.exists
+
+    - name: kubeadm config erstellen
+      copy:
+        dest: /tmp/kubeadm-config.yaml
+        content: |
+          apiVersion: kubeadm.k8s.io/v1beta4
+          kind: ClusterConfiguration
+          kubernetesVersion: v1.35.5
+          controlPlaneEndpoint: "{{ vip }}:6443"
+          apiServer:
+            certSANs:
+              - "{{ vip }}"
+              - "{{ ansible_host }}"
+              - "kubernetes"
+              - "kubernetes.default"
+              - "kubernetes.default.svc"
+              - "kubernetes.default.svc.cluster.local"
+          networking:
+            podSubnet: "{{ pod_network_cidr }}"
+          etcd:
+            local:
+              extraArgs:
+                - name: heartbeat-interval
+                  value: "500"
+                - name: election-timeout
+                  value: "5000"
+          ---
+          apiVersion: kubeadm.k8s.io/v1beta4
+          kind: InitConfiguration
+          nodeRegistration:
+            criSocket: unix:///run/containerd/containerd.sock
+      when: not k8s_config.stat.exists
+
+    - name: kubeadm init ausführen
+      command: >
+        kubeadm init
+        --config /tmp/kubeadm-config.yaml
+        --ignore-preflight-errors=Swap
+        --skip-phases=upload-config,upload-certs,mark-control-plane,bootstrap-token,kubelet-finalize,addon,show-join-command
+      register: kubeadm_init
+      when: not k8s_config.stat.exists
+
+    - name: kubeadm Output anzeigen
+      debug:
+        msg: "{{ kubeadm_init.stdout_lines }}"
+      when: not k8s_config.stat.exists
+
+    - name: Warten bis API-Server bereit
+      shell: curl -sk https://{{ ansible_host }}:6443/healthz
+      register: api_health
+      until: api_health.stdout == 'ok'
+      retries: 30
+      delay: 10
+      when: not k8s_config.stat.exists
+
+    - name: VIP in admin.conf ersetzen
+      replace:
+        path: /etc/kubernetes/admin.conf
+        regexp: "{{ vip }}:6443"
+        replace: "{{ ansible_host }}:6443"
+      when: not k8s_config.stat.exists
+
+    - name: VIP in super-admin.conf ersetzen
+      replace:
+        path: /etc/kubernetes/super-admin.conf
+        regexp: "{{ vip }}:6443"
+        replace: "{{ ansible_host }}:6443"
+      when: not k8s_config.stat.exists
+
+    - name: Restliche kubeadm Phasen ausführen
+      shell: |
+        export KUBECONFIG=/etc/kubernetes/super-admin.conf
+        kubectl config set-cluster kubernetes \
+          --server=https://{{ ansible_host }}:6443 \
+          --kubeconfig=/etc/kubernetes/super-admin.conf
+        kubectl config set-cluster kubernetes \
+          --server=https://{{ ansible_host }}:6443 \
+          --kubeconfig=/etc/kubernetes/admin.conf
+        kubectl config set-cluster kubernetes \
+          --server=https://{{ ansible_host }}:6443 \
+          --kubeconfig=/etc/kubernetes/controller-manager.conf
+        kubectl config set-cluster kubernetes \
+          --server=https://{{ ansible_host }}:6443 \
+          --kubeconfig=/etc/kubernetes/scheduler.conf
+        kubeadm init phase upload-config all --config /tmp/kubeadm-config.yaml
+        kubeadm init phase upload-certs --upload-certs --config /tmp/kubeadm-config.yaml
+        kubeadm init phase mark-control-plane --config /tmp/kubeadm-config.yaml
+        kubeadm init phase bootstrap-token --config /tmp/kubeadm-config.yaml
+        kubeadm init phase kubelet-finalize all --config /tmp/kubeadm-config.yaml
+        kubeadm init phase addon all --config /tmp/kubeadm-config.yaml
+      when: not k8s_config.stat.exists
+
+    - name: VIP wieder in admin.conf eintragen
+      replace:
+        path: /etc/kubernetes/admin.conf
+        regexp: "{{ ansible_host }}:6443"
+        replace: "{{ vip }}:6443"
+      when: not k8s_config.stat.exists
+
+    - name: VIP wieder in super-admin.conf eintragen
+      replace:
+        path: /etc/kubernetes/super-admin.conf
+        regexp: "{{ ansible_host }}:6443"
+        replace: "{{ vip }}:6443"
+      when: not k8s_config.stat.exists
+
+    - name: .kube Verzeichnis anlegen
+      file:
+        path: /home/ubuntu/.kube
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    - name: kubeconfig kopieren
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/ubuntu/.kube/config
+        owner: ubuntu
+        group: ubuntu
+        mode: '0600'
+        remote_src: true
+
+    - name: kubeconfig direkte IP setzen
+      replace:
+        path: /home/ubuntu/.kube/config
+        regexp: "{{ vip }}:6443"
+        replace: "{{ ansible_host }}:6443"
+
+    - name: Images Verzeichnis anlegen
+      file:
+        path: /tmp/k8s-images
+        state: directory
+        mode: '0755'
+      when: not k8s_config.stat.exists
+
+    - name: Kubernetes Images exportieren
+      shell: |
+        for img in $(crictl images | grep -v IMAGE | awk '{print $1":"$2}'); do
+          name=$(echo $img | tr '/:' '__')
+          ctr -n k8s.io images export /tmp/k8s-images/${name}.tar $img 2>/dev/null || true
+        done
+      when: not k8s_config.stat.exists
+
+    - name: Join Token generieren
+      command: kubeadm token create --print-join-command
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: join_command
+
+    - name: Certificate Key generieren
+      command: kubeadm init phase upload-certs --upload-certs
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: cert_key
+      when: groups['controlplane'] | length > 1
+
+    - name: Worker Join Command lokal speichern
+      local_action:
+        module: copy
+        content: "{{ join_command.stdout }}"
+        dest: /tmp/worker-join-command.sh
+        mode: '0755'
+      become: false
+
+    - name: CP Join Command lokal speichern
+      local_action:
+        module: copy
+        content: "{{ join_command.stdout }} --control-plane --certificate-key {{ cert_key.stdout_lines[-1] }}"
+        dest: /tmp/cp-join-command.sh
+        mode: '0755'
+      become: false
+      when: groups['controlplane'] | length > 1
+
+- name: Weitere Control Planes joinen
+  hosts: controlplane[1:]
+  gather_facts: true
+  become: true
+  serial: 1
+
+  tasks:
+    - name: Prüfen ob Control Plane bereits gejoint
+      stat:
+        path: /etc/kubernetes/admin.conf
+      register: cp_config
+
+    - name: kubeadm reset
+      command: kubeadm reset -f
+      ignore_errors: true
+      when: not cp_config.stat.exists
+
+    - name: Verzeichnisse bereinigen
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/kubernetes/
+        - /var/lib/etcd/
+        - /var/lib/kubelet/
+        - /etc/cni/net.d/
+      when: not cp_config.stat.exists
+
+    - name: CP Join Command auf Control Plane kopieren
+      copy:
+        src: /tmp/cp-join-command.sh
+        dest: /tmp/cp-join-command.sh
+        mode: '0755'
+      when: 
+        - not cp_config.stat.exists
+        - groups['controlplane'] | length > 1
+
+    - name: Control Plane joinen
+      command: bash /tmp/cp-join-command.sh
+      when: 
+        - not cp_config.stat.exists
+        - groups['controlplane'] | length > 1
+
+    - name: .kube Verzeichnis anlegen
+      file:
+        path: /home/ubuntu/.kube
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    - name: kubeconfig kopieren
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/ubuntu/.kube/config
+        owner: ubuntu
+        group: ubuntu
+        mode: '0600'
+        remote_src: true
+
+    - name: kubeconfig direkte IP setzen
+      replace:
+        path: /home/ubuntu/.kube/config
+        regexp: "{{ vip }}:6443"
+        replace: "{{ ansible_host }}:6443"
+
+- name: Images auf Worker kopieren und importieren
+  hosts: workers
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: Images Verzeichnis anlegen
+      file:
+        path: /tmp/k8s-images
+        state: directory
+        mode: '0755'
+
+    - name: Image-Liste vom Control Plane holen
+      find:
+        path: /tmp/k8s-images
+        patterns: "*.tar"
+      delegate_to: "{{ groups['controlplane'][0] }}"
+      register: image_files
+
+    - name: Images vom Control Plane holen
+      fetch:
+        src: "{{ item.path }}"
+        dest: /tmp/k8s-images-local/
+        flat: yes
+        validate_checksum: false
+      delegate_to: "{{ groups['controlplane'][0] }}"
+      loop: "{{ image_files.files }}"
+
+    - name: Images auf Worker kopieren
+      copy:
+        src: "/tmp/k8s-images-local/{{ item.path | basename }}"
+        dest: "/tmp/k8s-images/{{ item.path | basename }}"
+      loop: "{{ image_files.files }}"
+
+    - name: Images importieren
+      shell: |
+        for f in /tmp/k8s-images/*.tar; do
+          ctr -n k8s.io images import $f || true
+        done
+
+- name: Worker Nodes joinen
+  hosts: workers
+  gather_facts: true
+  become: true
+
+  tasks:
+    - name: Prüfen ob Worker bereits gejoint
+      stat:
+        path: /etc/kubernetes/kubelet.conf
+      register: worker_config
+
+    - name: kubeadm reset
+      command: kubeadm reset -f
+      ignore_errors: true
+      when: worker_config.stat.exists
+
+    - name: Alte Kubernetes Verzeichnisse entfernen
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/kubernetes/
+        - /var/lib/kubelet/
+        - /etc/cni/net.d/
+      when: worker_config.stat.exists
+
+    - name: Join Command auf Worker kopieren
+      copy:
+        src: /tmp/worker-join-command.sh
+        dest: /tmp/worker-join-command.sh
+        mode: '0755'
+
+    - name: Worker joinen
+      command: bash /tmp/worker-join-command.sh
+      args:
+        creates: /etc/kubernetes/kubelet.conf
+
+- name: Calico Images auf Control Plane und Worker kopieren
+  hosts: k8s_cluster
+  gather_facts: false
+  become: true
+
+  vars:
+    calico_version: "v3.31.2"
+    calico_images:
+      - "quay.io/calico/apiserver:{{ calico_version }}"
+      - "quay.io/calico/cni:{{ calico_version }}"
+      - "quay.io/calico/csi:{{ calico_version }}"
+      - "quay.io/calico/goldmane:{{ calico_version }}"
+      - "quay.io/calico/kube-controllers:{{ calico_version }}"
+      - "quay.io/calico/node-driver-registrar:{{ calico_version }}"
+      - "quay.io/calico/node:{{ calico_version }}"
+      - "quay.io/calico/pod2daemon-flexvol:{{ calico_version }}"
+      - "quay.io/calico/typha:{{ calico_version }}"
+      - "quay.io/calico/whisker-backend:{{ calico_version }}"
+      - "quay.io/calico/whisker:{{ calico_version }}"
+      - "quay.io/tigera/operator:v1.40.2"
+
+  tasks:
+    - name: Calico Images Verzeichnis anlegen
+      file:
+        path: /tmp/calico-images
+        state: directory
+        mode: '0755'
+
+    - name: Image-Liste vom Control Plane holen
+      find:
+        path: /tmp/calico-images
+        patterns: "*.tar"
+      delegate_to: "{{ groups['controlplane'][0] }}"
+      register: calico_image_files
+
+    - name: Calico Images vom Control Plane holen
+      fetch:
+        src: "{{ item.path }}"
+        dest: /tmp/calico-images-local/
+        flat: yes
+        validate_checksum: false
+      delegate_to: "{{ groups['controlplane'][0] }}"
+      loop: "{{ calico_image_files.files }}"
+      when: inventory_hostname != groups['controlplane'][0]
+
+    - name: Calico Images auf Nodes kopieren
+      copy:
+        src: "/tmp/calico-images-local/{{ item.path | basename }}"
+        dest: "/tmp/calico-images/{{ item.path | basename }}"
+      loop: "{{ calico_image_files.files }}"
+      when: inventory_hostname != groups['controlplane'][0]
+
+    - name: Calico Images importieren
+      shell: |
+        for f in /tmp/calico-images/*.tar; do
+          ctr -n k8s.io images import $f || true
+        done
+
+- name: Calico installieren
+  hosts: controlplane[0]
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: Tigera Operator installieren
+      shell: kubectl apply --validate=false -f https://raw.githubusercontent.com/projectcalico/calico/v3.31.2/manifests/tigera-operator.yaml
+      become: false
+      environment:
+        KUBECONFIG: /home/ubuntu/.kube/config
+
+    - name: Warten bis Tigera Operator Pod läuft
+      shell: kubectl get pods -n tigera-operator
+      become: false
+      environment:
+        KUBECONFIG: /home/ubuntu/.kube/config
+      register: operator_status
+      until: "'Running' in operator_status.stdout"
+      retries: 30
+      delay: 10
+
+    - name: Warten bis Tigera CRDs registriert sind
+      shell: kubectl get crd installations.operator.tigera.io
+      become: false
+      environment:
+        KUBECONFIG: /home/ubuntu/.kube/config
+      register: crd_status
+      until: crd_status.rc == 0
+      retries: 30
+      delay: 10
+
+    - name: Custom Resources herunterladen
+      shell: curl -L -o /home/ubuntu/custom-resources.yaml https://raw.githubusercontent.com/projectcalico/calico/v3.31.2/manifests/custom-resources.yaml
+
+    - name: Pod CIDR anpassen
+      replace:
+        path: /home/ubuntu/custom-resources.yaml
+        regexp: '192\.168\.0\.0/16'
+        replace: '10.78.81.0/24'
+
+    - name: Calico Custom Resources installieren
+      shell: kubectl apply --validate=false -f /home/ubuntu/custom-resources.yaml
+      become: false
+      environment:
+        KUBECONFIG: /home/ubuntu/.kube/config
+
+    - name: Warten bis Nodes Ready
+      shell: kubectl get nodes
+      become: false
+      environment:
+        KUBECONFIG: /home/ubuntu/.kube/config
+      register: nodes
+      until: "'NotReady' not in nodes.stdout"
+      retries: 30
+      delay: 10
+
+    - name: Node Status anzeigen
+      debug:
+        msg: "{{ nodes.stdout_lines }}"

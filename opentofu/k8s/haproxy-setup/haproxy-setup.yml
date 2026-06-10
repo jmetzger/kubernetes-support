@@ -1,0 +1,126 @@
+- name: HAProxy + keepalived installieren
+  hosts: loadbalancer
+  gather_facts: true
+  become: true
+
+  vars:
+    vip: "10.78.80.230"
+    interface: "ens192"
+
+  tasks:
+    - name: Warten bis SSH verfügbar ist
+      wait_for_connection:
+        delay: 30
+        timeout: 300
+
+    - name: Facts sammeln
+      gather_facts:
+
+    - name: Pakete installieren
+      apt:
+        name:
+          - haproxy
+          - keepalived
+        state: present
+        update_cache: true
+
+    - name: Pakete installieren
+      apt:
+        name:
+          - haproxy
+          - keepalived
+        state: present
+        update_cache: true
+
+    - name: HAProxy Konfiguration erstellen
+      copy:
+        dest: /etc/haproxy/haproxy.cfg
+        content: |
+          global
+            log /dev/log local0
+            log /dev/log local1 notice
+            maxconn 4096
+            user haproxy
+            group haproxy
+            daemon
+
+          defaults
+            log global
+            mode tcp
+            option tcplog
+            option dontlognull
+            timeout connect 5s
+            timeout client  50s
+            timeout server  50s
+
+          frontend k8s-api
+            bind *:6443
+            mode tcp
+            default_backend k8s-control-planes
+
+          backend k8s-control-planes
+            mode tcp
+            balance roundrobin
+            server {{ groups['controlplane'][0] }} {{ hostvars[groups['controlplane'][0]]['ansible_host'] }}:6443
+
+          frontend stats
+            bind *:8404
+            mode http
+            stats enable
+            stats uri /stats
+            stats refresh 10s
+      notify: haproxy restart
+
+    - name: keepalived Konfiguration erstellen
+      copy:
+        dest: /etc/keepalived/keepalived.conf
+        content: |
+          vrrp_instance VI_1 {
+              state {{ 'MASTER' if ansible_host == hostvars[groups['loadbalancer'][0]]['ansible_host'] else 'BACKUP' }}
+              interface {{ interface }}
+              virtual_router_id 51
+              priority {{ 100 if ansible_host == hostvars[groups['loadbalancer'][0]]['ansible_host'] else 90 }}
+              advert_int 1
+
+              authentication {
+                  auth_type PASS
+                  auth_pass k8shaproxy
+              }
+
+              virtual_ipaddress {
+                  {{ vip }}
+              }
+          }
+      notify: keepalived restart
+
+    - name: HAProxy aktivieren
+      systemd:
+        name: haproxy
+        enabled: true
+        state: started
+
+    - name: keepalived aktivieren
+      systemd:
+        name: keepalived
+        enabled: true
+        state: started
+
+    - name: VIP prüfen
+      command: ip a show {{ interface }}
+      register: ip_output
+      changed_when: false
+
+    - name: IP-Ausgabe anzeigen
+      debug:
+        msg: "{{ ip_output.stdout_lines }}"
+
+  handlers:
+    - name: haproxy restart
+      systemd:
+        name: haproxy
+        state: restarted
+
+    - name: keepalived restart
+      systemd:
+        name: keepalived
+        state: restarted

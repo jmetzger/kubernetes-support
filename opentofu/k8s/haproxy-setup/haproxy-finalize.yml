@@ -1,0 +1,81 @@
+---
+- name: HAProxy Finalisieren - Alle Control Planes hinzufügen
+  hosts: loadbalancer
+  gather_facts: true
+  become: true
+
+  vars:
+    vip: "10.78.80.230"
+    interface: "ens192"
+
+  tasks:
+    - name: HAProxy Konfiguration aktualisieren
+      copy:
+        dest: /etc/haproxy/haproxy.cfg
+        content: |
+          global
+            log /dev/log local0
+            log /dev/log local1 notice
+            maxconn 4096
+            user haproxy
+            group haproxy
+            daemon
+
+          defaults
+            log global
+            mode tcp
+            option tcplog
+            option dontlognull
+            timeout connect 5s
+            timeout client  50s
+            timeout server  50s
+
+          frontend k8s-api
+            bind *:6443
+            mode tcp
+            default_backend k8s-control-planes
+
+          backend k8s-control-planes
+            mode tcp
+            balance roundrobin
+            option tcp-check
+            {% for host in groups['controlplane'] %}
+            server {{ host }} {{ hostvars[host]['ansible_host'] }}:6443 check fall 3 rise 2
+            {% endfor %}
+
+          frontend stats
+            bind *:8404
+            mode http
+            stats enable
+            stats uri /stats
+            stats refresh 10s
+      notify: haproxy restart
+
+    - name: HAProxy neu starten
+      systemd:
+        name: haproxy
+        state: restarted
+
+    - name: VIP prüfen
+      command: ip a show {{ interface }}
+      register: ip_output
+      changed_when: false
+
+    - name: IP-Ausgabe anzeigen
+      debug:
+        msg: "{{ ip_output.stdout_lines }}"
+
+    - name: HAProxy Status prüfen
+      command: curl -sk https://{{ vip }}:6443/healthz
+      register: vip_health
+      changed_when: false
+
+    - name: VIP Health anzeigen
+      debug:
+        msg: "{{ vip_health.stdout }}"
+
+  handlers:
+    - name: haproxy restart
+      systemd:
+        name: haproxy
+        state: restarted
