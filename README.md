@@ -5,10 +5,10 @@ Automatisiertes Deployen von Kubernetes-Clustern mit Packer, OpenTofu und Ansibl
 ## Repository-Struktur
 
 ```
-packer/       ← VM Gold Images bauen
-opentofu/     ← VMs provisionieren
-ansible/      ← VMs konfigurieren
-.gitlab-ci.yml
+k8s-deploy/
+  packer/       ← VM Gold Images bauen
+  opentofu/     ← VMs provisionieren
+  ansible/      ← VMs konfigurieren
 ```
 
 ## Code
@@ -17,29 +17,29 @@ ansible/      ← VMs konfigurieren
 
 | Verzeichnis | Image | Enthält |
 |---|---|---|
-| [packer/k8s/](packer/k8s/) | VMk8s | containerd, kubeadm, kubelet, kubectl |
-| [packer/haproxy/](packer/haproxy/) | VMhaproxy | haproxy, keepalived |
-| [packer/scripts/](packer/scripts/) | shared | Provisioner-Scripts für beide Images |
+| [k8s-deploy/packer/k8s/](k8s-deploy/packer/k8s/) | VMk8s | containerd, kubeadm, kubelet, kubectl |
+| [k8s-deploy/packer/haproxy/](k8s-deploy/packer/haproxy/) | VMhaproxy | haproxy, keepalived |
+| [k8s-deploy/packer/scripts/](k8s-deploy/packer/scripts/) | shared | Provisioner-Scripts für beide Images |
 
 ### OpenTofu — Cluster provisionieren
 
 | Datei | Inhalt |
 |---|---|
-| [opentofu/main.tf](opentofu/main.tf) | Provider + Backend |
-| [opentofu/control-plane.tf](opentofu/control-plane.tf) | Control Plane VMs |
-| [opentofu/haproxy.tf](opentofu/haproxy.tf) | HAProxy VMs |
-| [opentofu/workernode.tf](opentofu/workernode.tf) | Worker VMs |
-| [opentofu/variables.tf](opentofu/variables.tf) | Alle Variablen |
-| [opentofu/modules/vsphere-vm/](opentofu/modules/vsphere-vm/) | Gemeinsames VM-Modul |
+| [k8s-deploy/opentofu/main.tf](k8s-deploy/opentofu/main.tf) | Provider + Backend |
+| [k8s-deploy/opentofu/control-plane.tf](k8s-deploy/opentofu/control-plane.tf) | Control Plane VMs |
+| [k8s-deploy/opentofu/haproxy.tf](k8s-deploy/opentofu/haproxy.tf) | HAProxy VMs |
+| [k8s-deploy/opentofu/workernode.tf](k8s-deploy/opentofu/workernode.tf) | Worker VMs |
+| [k8s-deploy/opentofu/variables.tf](k8s-deploy/opentofu/variables.tf) | Alle Variablen |
+| [k8s-deploy/opentofu/modules/vsphere-vm/](k8s-deploy/opentofu/modules/vsphere-vm/) | Gemeinsames VM-Modul |
 
 ### Ansible — Cluster konfigurieren
 
 | Verzeichnis | Inhalt |
 |---|---|
-| [ansible/haproxy-setup/](ansible/haproxy-setup/) | HAProxy + Keepalived installieren und finalisieren |
-| [ansible/k8s-setup/](ansible/k8s-setup/) | Kubernetes initialisieren und Worker joinen |
-| [ansible/inventory/](ansible/inventory/) | Ansible Inventory aus OpenTofu Outputs generieren |
-| [ansible/teardown/](ansible/teardown/) | VMs loeschen |
+| [k8s-deploy/ansible/haproxy-setup/](k8s-deploy/ansible/haproxy-setup/) | HAProxy + Keepalived installieren und finalisieren |
+| [k8s-deploy/ansible/k8s-setup/](k8s-deploy/ansible/k8s-setup/) | Kubernetes initialisieren und Worker joinen |
+| [k8s-deploy/ansible/inventory/](k8s-deploy/ansible/inventory/) | Ansible Inventory aus OpenTofu Outputs generieren |
+| [k8s-deploy/ansible/teardown/](k8s-deploy/ansible/teardown/) | VMs loeschen |
 
 ## Dokumentation
 
