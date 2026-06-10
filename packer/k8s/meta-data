@@ -1,0 +1,10 @@
+packer init .
+packer build \
+  -var "vcenter_server=svr-poc-vcenter.mgmt.internal" \
+  -var "vcenter_user="opentofu"" \
+  -var "vcenter_password=CHANGE_ME" \
+  -var "datacenter=I3s" \
+  -var "cluster=10.78.50.108" \
+  -var "datastore=lun-rz1-v3010" \
+  -var "network=POCK8ST-V1080-80" \
+  ubuntu.pkr.hcl

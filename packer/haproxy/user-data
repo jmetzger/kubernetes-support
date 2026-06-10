@@ -1,0 +1,28 @@
+#cloud-config
+autoinstall:
+  version: 1
+  locale: en_US.UTF-8
+  keyboard:
+    layout: de
+  identity:
+    hostname: packer-build
+    username: ubuntu
+    password: "CHANGE_ME_HASH"  # mkpasswd -m sha-512
+  ssh:
+    install-server: true
+    allow-pw: true
+    authorized-keys:
+      - "ssh-ed25519 CHANGE_ME_PUBKEY awx-k8s"
+  packages:
+    - open-vm-tools
+    - cloud-init
+    - curl
+    - gnupg
+    - haproxy
+    - keepalived
+  storage:
+    layout:
+      name: direct
+  late-commands:
+    - "echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/ubuntu"
+    - "sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /target/etc/ssh/sshd_config"
