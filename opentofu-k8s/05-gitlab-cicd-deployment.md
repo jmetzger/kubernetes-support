@@ -112,12 +112,17 @@ Fuer OpenTofu werden beim "Run pipeline" die Cluster-Parameter abgefragt:
 
 Settings → CI/CD → Variables, **masked + protected**:
 
-| Variable                  | Verwendet von       |
-|---------------------------|---------------------|
-| `TF_VAR_vcenter_password` | OpenTofu + Packer   |
+| Variable                    | Verwendet von                        |
+|-----------------------------|--------------------------------------|
+| `TF_VAR_vcenter_password`   | OpenTofu + Packer (vcenter_password) |
+| `PACKER_SSH_PRIVATE_KEY_FILE` | Packer — Pfad zum SSH Private Key  |
 
 Packer holt sich das Passwort ueber `PKR_VAR_vcenter_password: $TF_VAR_vcenter_password`
 im Job — ein Secret fuer beide Tools.
+
+Der SSH Private Key wird benoetigt damit Packer sich nach dem Autoinstall
+auf die neue VM verbinden kann. Der zugehoerige Public Key muss in
+`packer/k8s/user-data` und `packer/haproxy/user-data` unter `authorized-keys` eingetragen sein.
 
 Alle anderen vSphere-Werte (Server, User, Datacenter etc.) haben
 Defaults in `variables.tf` und `variables.pkrvars.json`.
