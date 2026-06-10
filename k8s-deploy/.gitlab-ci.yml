@@ -12,19 +12,9 @@ stages:
   - destroy
 
 # -------------------------------------------------------------------
-# Packer — VM-Images bauen
-# -------------------------------------------------------------------
-variables:
-  K8S_TEMPLATE_NAME:
-    value: "VMk8s"
-    description: "Name des K8s VM-Templates in der vSphere Content Library"
-  HAPROXY_TEMPLATE_NAME:
-    value: "VMhaproxy"
-    description: "Name des HAProxy VM-Templates in der vSphere Content Library"
-
-# -------------------------------------------------------------------
 # OpenTofu — Cluster deployen
 # -------------------------------------------------------------------
+variables:
   CLUSTER_NAME:
     value: "prod-k8s-1"
     description: "Eindeutiger Cluster-Name — wird als State-Name verwendet (z.B. prod-k8s-1, dev-k8s-2)"

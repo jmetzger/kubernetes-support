@@ -12,7 +12,7 @@ packer-k8s:
   image: hashicorp/packer:latest
   variables:
     PKR_VAR_vcenter_password: $TF_VAR_vcenter_password
-    PKR_VAR_template_name: $K8S_TEMPLATE_NAME
+    PKR_VAR_template_name: "VMk8s"
   script:
     - !reference [.packer_init, script]
     - packer build k8s-deploy/packer/k8s/
@@ -23,7 +23,7 @@ packer-haproxy:
   image: hashicorp/packer:latest
   variables:
     PKR_VAR_vcenter_password: $TF_VAR_vcenter_password
-    PKR_VAR_template_name: $HAPROXY_TEMPLATE_NAME
+    PKR_VAR_template_name: "VMhaproxy"
   script:
     - !reference [.packer_init, script]
     - packer build k8s-deploy/packer/haproxy/

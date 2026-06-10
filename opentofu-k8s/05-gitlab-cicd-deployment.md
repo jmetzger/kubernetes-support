@@ -86,18 +86,15 @@ flache Liste von Strings und wuerde die Befehle nicht ausfuehren.
 
 ## Das Formular — "Run pipeline" in GitLab
 
-Der Benutzer startet die Pipeline manuell und fuellt nur die Felder aus,
-die fuer den gewuenschten Job benoetigt werden:
+Packer braucht kein Formular — Template-Namen sind fest in `ci/packer.yml`
+hinterlegt. Einfach den Job anstossen.
+
+Fuer OpenTofu werden beim "Run pipeline" die Cluster-Parameter abgefragt:
 
 ```
 ┌─────────────────────────────────────────────────────┐
 │  Run pipeline on branch: main                       │
 │                                                     │
-│  Packer:                                            │
-│  K8S_TEMPLATE_NAME     [VMk8s                     ] │
-│  HAPROXY_TEMPLATE_NAME [VMhaproxy                 ] │
-│                                                     │
-│  OpenTofu:                                          │
 │  CLUSTER_NAME          [prod-k8s-1                ] │
 │  CP_COUNT              [3                         ] │
 │  WORKER_COUNT          [3                         ] │
@@ -160,8 +157,7 @@ gitlab.example.com/.../terraform/state/dev-k8s-1
 ### Packer — VM-Images bauen (einmalig oder bei Updates)
 
 ```
-1. "Run pipeline" starten
-   K8S_TEMPLATE_NAME und HAPROXY_TEMPLATE_NAME pruefen
+1. "Run pipeline" starten (kein Formular noetig)
          ↓
 2. packer-k8s anstossen
    Baut VMk8s-Image in vSphere Content Library
