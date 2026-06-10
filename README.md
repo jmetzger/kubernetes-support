@@ -1,33 +1,74 @@
 # Kubernetes Support & Best Practices
 
-## Inhalt
+Automatisiertes Deployen von Kubernetes-Clustern mit Packer, OpenTofu und Ansible auf VMware vSphere.
 
-### OpenTofu — K8s Cluster auf vSphere
+## Repository-Struktur
 
-Analyse, Best Practices und Verbesserungsvorschläge für das automatisierte Deployen von Kubernetes-Clustern mit OpenTofu + Ansible auf VMware vSphere.
+```
+packer/       ← VM Gold Images bauen
+opentofu/     ← VMs provisionieren
+ansible/      ← VMs konfigurieren
+.gitlab-ci.yml
+```
 
-* [OpenTofu Code: K8s Cluster auf vSphere](opentofu/)
+## Code
+
+### Packer — Gold Images
+
+| Verzeichnis | Image | Enthält |
+|---|---|---|
+| [packer/k8s/](packer/k8s/) | VMk8s | containerd, kubeadm, kubelet, kubectl |
+| [packer/haproxy/](packer/haproxy/) | VMhaproxy | haproxy, keepalived |
+| [packer/scripts/](packer/scripts/) | shared | Provisioner-Scripts für beide Images |
+
+### OpenTofu — Cluster provisionieren
+
+| Datei | Inhalt |
+|---|---|
+| [opentofu/main.tf](opentofu/main.tf) | Provider + Backend |
+| [opentofu/control-plane.tf](opentofu/control-plane.tf) | Control Plane VMs |
+| [opentofu/haproxy.tf](opentofu/haproxy.tf) | HAProxy VMs |
+| [opentofu/workernode.tf](opentofu/workernode.tf) | Worker VMs |
+| [opentofu/variables.tf](opentofu/variables.tf) | Alle Variablen |
+| [opentofu/modules/vsphere-vm/](opentofu/modules/vsphere-vm/) | Gemeinsames VM-Modul |
+
+### Ansible — Cluster konfigurieren
+
+| Verzeichnis | Inhalt |
+|---|---|
+| [ansible/haproxy-setup/](ansible/haproxy-setup/) | HAProxy + Keepalived installieren und finalisieren |
+| [ansible/k8s-setup/](ansible/k8s-setup/) | Kubernetes initialisieren und Worker joinen |
+| [ansible/inventory/](ansible/inventory/) | Ansible Inventory aus OpenTofu Outputs generieren |
+| [ansible/teardown/](ansible/teardown/) | VMs loeschen |
+
+## Dokumentation
+
+### Analyse & Best Practices
+
 * [Code-Analyse: Übersicht](opentofu-k8s/01-code-analyse.md)
-* [Was gut gemacht ist — Best Practices mit Erklärungen](opentofu-k8s/01a-was-gut-ist.md)
+* [Was gut gemacht ist](opentofu-k8s/01a-was-gut-ist.md)
 * [Was verbessert werden sollte](opentofu-k8s/01b-was-verbessert-werden-sollte.md)
+
+### Architektur & Design
+
 * [Multi-Cluster Self-Service via GitLab Formular](opentofu-k8s/02-multi-cluster-selfservice.md)
-* [ArgoCD Autopilot — Übung: GitOps vom ersten Tag](opentofu-k8s/03-argocd-autopilot.md)
 * [Modul-Struktur: vsphere-vm (DRY-Refactoring)](opentofu-k8s/04-modul-struktur-vsphere-vm.md)
 * [GitLab CI/CD Deployment mit OpenTofu](opentofu-k8s/05-gitlab-cicd-deployment.md)
 
-### Ansible Vault + GitLab CI/CD
+### Weiteres
 
-* [Komplettes Beispiel-Setup: Ansible Vault mit GitLab CI/CD](ansible-vault-example/SETUP.md)
+* [ArgoCD Autopilot — GitOps vom ersten Tag](opentofu-k8s/03-argocd-autopilot.md)
+* [Ansible Vault + GitLab CI/CD Beispiel](ansible-vault-example/SETUP.md)
 
-### Persistent Storage
+## Persistent Storage
 
 * [HPE CSI Driver – iSCSI + Multipath auf Debian](kubernetes-csi/hpe-csi-iscsi-multipath.md)
 
-### OpenBAO
+## OpenBAO
 
 * [IDP (Kubernetes) mit OpenBao](openbao/idp-kubernetes.md)
 * [SSH Public Keys aus OpenBao provisionieren](openbao/ssh-public-keys.md)
 
-### ArgoCD Autopilot
+## ArgoCD Autopilot
 
 * [Problem: zu großer Annotation-Inhalt lösen](argocd/autopilot/zu-grosser-annotation-inhalt.md)
