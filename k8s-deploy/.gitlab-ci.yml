@@ -35,16 +35,17 @@ variables:
 # Shared: tofu init mit GitLab State Backend
 # CI_API_V4_URL, CI_PROJECT_ID und CI_JOB_TOKEN sind automatisch verfuegbar
 # -------------------------------------------------------------------
-.tofu_init: &tofu_init
-  - cd ${TF_ROOT}
-  - tofu init
-      -backend-config="address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${CLUSTER_NAME}"
-      -backend-config="lock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${CLUSTER_NAME}/lock"
-      -backend-config="unlock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${CLUSTER_NAME}/lock"
-      -backend-config="lock_method=POST"
-      -backend-config="unlock_method=DELETE"
-      -backend-config="username=gitlab-ci-token"
-      -backend-config="password=${CI_JOB_TOKEN}"
+.tofu_init:
+  script:
+    - cd ${TF_ROOT}
+    - tofu init
+        -backend-config="address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${CLUSTER_NAME}"
+        -backend-config="lock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${CLUSTER_NAME}/lock"
+        -backend-config="unlock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${CLUSTER_NAME}/lock"
+        -backend-config="lock_method=POST"
+        -backend-config="unlock_method=DELETE"
+        -backend-config="username=gitlab-ci-token"
+        -backend-config="password=${CI_JOB_TOKEN}"
 
 # -------------------------------------------------------------------
 # Plan — laeuft automatisch, zeigt was erstellt wird
@@ -53,7 +54,7 @@ plan:
   stage: plan
   image: ghcr.io/opentofu/opentofu:latest
   script:
-    - *tofu_init
+    - !reference [.tofu_init, script]
     - tofu plan
         -var="cp_count=${CP_COUNT}"
         -var="worker_count=${WORKER_COUNT}"
@@ -76,7 +77,7 @@ deploy:
   stage: deploy
   image: ghcr.io/opentofu/opentofu:latest
   script:
-    - *tofu_init
+    - !reference [.tofu_init, script]
     - tofu apply tfplan
   environment:
     name: $CLUSTER_NAME
@@ -91,7 +92,7 @@ destroy:
   stage: destroy
   image: ghcr.io/opentofu/opentofu:latest
   script:
-    - *tofu_init
+    - !reference [.tofu_init, script]
     - tofu destroy -auto-approve
         -var="cp_count=${CP_COUNT}"
         -var="worker_count=${WORKER_COUNT}"
