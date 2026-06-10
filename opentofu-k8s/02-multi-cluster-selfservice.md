@@ -45,7 +45,7 @@ workflow:
     datastore:
       description: "vSphere Datastore"
       type: select
-      options: ["lun-rz1-v3010", "lun-rz2-v3010"]
+      options: ["datastore-01", "datastore-02"]
 ```
 
 ---
@@ -62,7 +62,7 @@ clusters:
     control_planes: 3
     workers: 5
     vip: "10.x.x.200"
-    datastore: lun-rz1-v3010
+    datastore: datastore-01
     created: "2026-06-10"
     created_by: jmetzger
     pipeline: "https://gitlab.intern/k8s/deploy/pipelines/1234"
@@ -72,7 +72,7 @@ clusters:
     control_planes: 1
     workers: 2
     vip: "10.x.x.210"
-    datastore: lun-rz2-v3010
+    datastore: datastore-02
     created: "2026-05-01"
     created_by: mmustermann
     pipeline: "https://gitlab.intern/k8s/deploy/pipelines/987"

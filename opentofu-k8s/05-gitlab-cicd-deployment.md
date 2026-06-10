@@ -34,9 +34,9 @@ Jeder Cluster bekommt seinen eigenen State ueber den `CLUSTER_NAME`:
 ```
 STATE_NAME = "${CLUSTER_NAME}"
 
-gitlab.isgus.de/.../terraform/state/prod-k8s-1
-gitlab.isgus.de/.../terraform/state/prod-k8s-2
-gitlab.isgus.de/.../terraform/state/dev-k8s-1
+gitlab.example.com/.../terraform/state/prod-k8s-1
+gitlab.example.com/.../terraform/state/prod-k8s-2
+gitlab.example.com/.../terraform/state/dev-k8s-1
 ```
 
 ## Das Formular — "Run pipeline" in GitLab
@@ -51,9 +51,9 @@ Der Benutzer startet die Pipeline manuell und fuellt die Variablen aus:
 │  CLUSTER_NAME      [prod-k8s-1        ] │
 │  CP_COUNT          [3                 ] │
 │  WORKER_COUNT      [5                 ] │
-│  HAPROXY_BASE_IP   [10.78.80.210      ] │
-│  CP_BASE_IP        [10.78.80.220      ] │
-│  WORKER_BASE_IP    [10.78.80.230      ] │
+│  HAPROXY_BASE_IP   [10.0.0.20         ] │
+│  CP_BASE_IP        [10.0.0.10         ] │
+│  WORKER_BASE_IP    [10.0.0.30         ] │
 │                                         │
 │              [ Run pipeline ]           │
 └─────────────────────────────────────────┘
