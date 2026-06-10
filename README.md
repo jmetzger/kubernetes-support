@@ -6,7 +6,8 @@
 
 Analyse, Best Practices und Verbesserungsvorschläge für das automatisierte Deployen von Kubernetes-Clustern mit OpenTofu + Ansible auf VMware vSphere.
 
-* [Code-Analyse: Was ist gut, was kann verbessert werden](opentofu-k8s/01-code-analyse.md)
+* [Code-Analyse: Übersicht](opentofu-k8s/01-code-analyse.md)
+* [Was gut gemacht ist — Best Practices mit Erklärungen](opentofu-k8s/01a-was-gut-ist.md)
 * [Multi-Cluster Self-Service via GitLab Formular](opentofu-k8s/02-multi-cluster-selfservice.md)
 * [ArgoCD Autopilot — Übung: GitOps vom ersten Tag](opentofu-k8s/03-argocd-autopilot.md)
 

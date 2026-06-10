@@ -32,137 +32,19 @@ Ausgeführt über **AWX** (Ansible Automation Platform) mit Credential Injector 
 
 ## ✅ Was gut gemacht ist
 
-### 1. Secrets nie im Code — Credential Injector
+Details mit Erklärungen und Code-Beispielen: [01a-was-gut-ist.md](01a-was-gut-ist.md)
 
-**Warum wichtig:** Passwörter im Code landen in Git-History, Logs, Backups — für immer.
+**Kurzübersicht:**
 
-**Wie umgesetzt:** Credentials kommen per AWX Credential Injector als Umgebungsvariablen zur Laufzeit:
-
-```yaml
-environment:
-  TF_VAR_vcenter_password: "{{ lookup('env', 'VSPHERE_PASSWORD') }}"
-```
-
-OpenTofu-Variable als `sensitive` markiert — kein Output in Logs:
-
-```hcl
-variable "vcenter_password" {
-  type      = string
-  sensitive = true
-}
-```
-
----
-
-### 2. Provider-Version gepinnt
-
-**Warum wichtig:** Ohne Version-Pinning kann morgen ein anderer Provider gezogen werden mit Breaking Changes.
-
-```hcl
-required_providers {
-  vsphere = {
-    source  = "hashicorp/vsphere"
-    version = "~> 2.6"   # erlaubt 2.6.x, aber nicht 3.0
-  }
-}
-```
-
----
-
-### 3. IP-Berechnung mit `locals` statt hardcoded
-
-**Warum wichtig:** Wartbarkeit — nur eine Variable ändern statt viele Stellen im Code.
-
-```hcl
-locals {
-  cp_ip_prefix = join(".", slice(split(".", var.cp_base_ip), 0, 3))
-  cp_ip_start  = tonumber(split(".", var.cp_base_ip)[3])
-}
-
-# Verwendung:
-ipv4_address = "${local.cp_ip_prefix}.${local.cp_ip_start + count.index}"
-```
-
----
-
-### 4. Separater State pro Komponente
-
-**Warum wichtig:** Wenn Control-Plane und Worker denselben State teilen, riskiert man beim Worker-Delete auch die Control-Planes zu löschen.
-
-```
-gitlab-state/k8s-prod-haproxy   ← nur HAProxy VMs
-gitlab-state/k8s-prod-cp        ← nur Control-Plane VMs
-gitlab-state/k8s-prod-wn        ← nur Worker VMs
-```
-
----
-
-### 5. Shell-Skripte mit `set -euo pipefail`
-
-**Warum wichtig:** Ohne diese Flags laufen Shell-Skripte bei Fehlern einfach weiter — das Template könnte kaputt gebaut werden ohne dass man es merkt.
-
-```bash
-set -e        # exit bei Fehler
-set -u        # exit bei undefined variable
-set -o pipefail  # exit wenn Teil einer Pipe fehlschlägt
-```
-
-**Ergänzung für besseres Debugging:**
-
-```bash
-set -euo pipefail
-trap 'echo "FEHLER in Zeile $LINENO — Exit Code: $?" >&2' ERR
-```
-
-Gibt beim Fehlschlag die genaue Zeile aus — wichtig weil Packer kein interaktives Terminal hat.
-
----
-
-### 6. Idempotente Ansible-Tasks
-
-**Warum wichtig:** Playbooks sollen mehrfach ausführbar sein ohne Schaden anzurichten.
-
-```yaml
-# Idempotent: creates: verhindert zweite Ausführung
-- name: containerd Konfiguration erstellen
-  shell: containerd config default > /etc/containerd/config.toml
-  args:
-    creates: /etc/containerd/config.toml
-
-# Idempotent: stat + when verhindert doppelten kubeadm init
-- name: Prüfen ob Cluster bereits existiert
-  stat:
-    path: /etc/kubernetes/admin.conf
-  register: k8s_config
-
-- name: kubeadm init
-  command: kubeadm init ...
-  when: not k8s_config.stat.exists
-```
-
----
-
-### 7. HA-Setup durchdacht
-
-**Warum wichtig:** Single Point of Failure beim API-Server verhindert Control-Plane-Updates ohne Downtime.
-
-```
-                    ┌─────────────────┐
-                    │   VIP (Keepalived) │
-                    │   10.x.x.x:6443  │
-                    └────────┬────────┘
-                             │
-                    ┌────────┴────────┐
-                    │    HAProxy      │
-                    │  (2x, VRRP)    │
-                    └────────┬────────┘
-                             │
-              ┌──────────────┼──────────────┐
-              ▼              ▼              ▼
-         Control-Plane-1  CP-2          CP-3
-```
-
-Zweistufiges HAProxy-Setup: Erst mit einem CP deployen, dann nach kubeadm-Init alle CPs eintragen.
+| # | Best Practice | Warum |
+|---|---------------|-------|
+| 1 | Secrets per AWX Credential Injector | Nie in Git-History oder Logs |
+| 2 | Provider-Version gepinnt (`~> 2.6`) | Kein ungewolltes Breaking-Update |
+| 3 | IP-Berechnung mit `locals` | Eine Variable ändern → alles passt |
+| 4 | Separater State pro Komponente | Worker löschen ohne CP-Risiko |
+| 5 | `set -euo pipefail` + `trap ERR` | Packer-Build bricht bei Fehler sauber ab |
+| 6 | Idempotente Ansible-Tasks (`creates`, `stat+when`) | Mehrfach ausführbar ohne Schaden |
+| 7 | HAProxy + Keepalived HA-Setup | Kein Single Point of Failure am API-Server |
 
 ---
 
