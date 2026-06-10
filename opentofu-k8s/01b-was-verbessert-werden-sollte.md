@@ -21,21 +21,21 @@ opentofu/k8s/workernode/main.tf     ← identischer Provider-Block + VM-Resource
 
 ```
 opentofu/
-  main.tf               ← root main.tf (bereits vorhanden, generische VM-Erstellung)
-  variables.tf
+  main.tf               ← schon vorhanden, fuer generische Einzel-VMs (nicht K8s-spezifisch)
+  variables.tf          ← schon vorhanden
   modules/
-    vsphere-vm/         ← einmal schreiben, dreimal verwenden
+    vsphere-vm/         ← NEU: einmal schreiben, dreimal verwenden
       main.tf
       variables.tf
       outputs.tf
   k8s/
     control-plane/
-      main.tf           ← provider + Modul-Aufruf
+      main.tf           ← GEAENDERT: provider + Modul-Aufruf statt 80 Zeilen
       variables.tf
     workernode/
-      main.tf
+      main.tf           ← GEAENDERT: provider + Modul-Aufruf
     haproxy/
-      main.tf
+      main.tf           ← GEAENDERT: provider + Modul-Aufruf
 ```
 
 ```hcl
