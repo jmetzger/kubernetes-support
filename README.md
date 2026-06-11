@@ -19,6 +19,16 @@ Automatisiertes Deployen von Kubernetes-Clustern auf VMware vSphere via GitLab C
 * [GitLab CI/CD Deployment mit OpenTofu](opentofu-k8s/05-gitlab-cicd-deployment.md)
 * [ArgoCD Autopilot — GitOps vom ersten Tag](opentofu-k8s/03-argocd-autopilot.md)
 
+### AWX + GitLab + OpenTofu: Cluster Management
+
+Vollständig AWX-gesteuertes Kubernetes Cluster Management mit GitLab als
+Source of Truth und OpenTofu für die Infrastruktur.
+
+* [Architektur & Workflows](awx-cluster-management/01-architektur.md)
+* [Repository-Struktur (infra/automation + infra/clusters)](awx-cluster-management/02-repo-struktur.md)
+* [Ansible-Rollen (create, scale, upgrade, destroy)](awx-cluster-management/03-ansible-rollen.md)
+* [Netzwerk & IPAM (/16 → /24 pro Cluster)](awx-cluster-management/04-netzwerk-ipam.md)
+
 ### Ansible & AWX
 
 * [Komplettes Beispiel-Setup (Ansible Vault + GitLab CI/CD)](ansible-vault-example/SETUP.md)
