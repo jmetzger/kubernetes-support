@@ -413,6 +413,219 @@ Wird von create, scale und upgrade per `include_tasks` genutzt.
 
 ---
 
+## k8s_cluster_destroy
+
+### Besonderheiten
+
+- **Safety-Check:** Cluster-Name muss im Survey zweimal eingegeben werden
+- `tofu destroy` läuft im selben temporären Arbeitsverzeichnis wie apply
+- IP-Ranges werden in `ipam.yaml` als `freed` zurückgegeben
+- Cluster-Ordner wird **archiviert**, nicht gelöscht — History bleibt erhalten
+
+### Rollenstruktur
+
+```
+roles/
+└── k8s_cluster_destroy/
+    ├── defaults/
+    │   └── main.yml
+    ├── tasks/
+    │   ├── main.yml
+    │   ├── preflight.yml         # Existenz + Safety-Check
+    │   ├── tofu_destroy.yml      # tofu destroy im temp workdir
+    │   └── gitlab_cleanup.yml    # IPAM freigeben, Ordner archivieren, committen
+    └── templates/
+        └── destroyed.yaml.j2
+```
+
+### tasks/main.yml
+
+```yaml
+- ansible.builtin.import_tasks: preflight.yml
+- ansible.builtin.import_tasks: tofu_destroy.yml
+- ansible.builtin.import_tasks: gitlab_cleanup.yml
+```
+
+### tasks/preflight.yml
+
+```yaml
+- name: Clone repository
+  ansible.builtin.git:
+    repo: "{{ clusters_repo }}"
+    dest: "{{ repo_local_path }}"
+    version: main
+
+- name: Fail if cluster does not exist
+  ansible.builtin.fail:
+    msg: "Cluster '{{ cluster_name }}' nicht gefunden."
+  when: not (repo_local_path + '/' + cluster_name) is directory
+
+# Safety: Survey verlangt zweimalige Eingabe des Cluster-Namens
+- name: Fail if confirmation does not match
+  ansible.builtin.fail:
+    msg: >
+      Sicherheitscheck fehlgeschlagen: '{{ confirm_cluster_name }}'
+      stimmt nicht mit '{{ cluster_name }}' überein.
+  when: confirm_cluster_name != cluster_name
+```
+
+### tasks/tofu_destroy.yml
+
+```yaml
+- name: Create temp working directory
+  ansible.builtin.tempfile:
+    state: directory
+    prefix: "tofu_destroy_{{ cluster_name }}_"
+  register: tofu_workdir
+
+- name: Read module_version from meta.yaml
+  ansible.builtin.slurp:
+    src: "{{ repo_local_path }}/{{ cluster_name }}/meta.yaml"
+  register: meta_raw
+
+- name: Parse module_version
+  ansible.builtin.set_fact:
+    module_version: "{{ (meta_raw.content | b64decode | from_yaml).module_version }}"
+
+- name: Generate main.tf from template
+  ansible.builtin.template:
+    src: "{{ role_path }}/../k8s_cluster_create/templates/main.tf.j2"
+    dest: "{{ tofu_workdir.path }}/main.tf"
+
+- name: Copy terraform.tfvars into workdir
+  ansible.builtin.copy:
+    src: "{{ repo_local_path }}/{{ cluster_name }}/terraform.tfvars"
+    dest: "{{ tofu_workdir.path }}/terraform.tfvars"
+    remote_src: true
+
+- name: tofu init
+  ansible.builtin.command:
+    cmd: tofu init
+    chdir: "{{ tofu_workdir.path }}"
+  environment:
+    TF_HTTP_USERNAME: "oauth2"
+    TF_HTTP_PASSWORD: "{{ gitlab_token }}"
+
+- name: tofu destroy
+  ansible.builtin.command:
+    cmd: tofu destroy -auto-approve -var-file=terraform.tfvars
+    chdir: "{{ tofu_workdir.path }}"
+  environment:
+    TF_HTTP_USERNAME: "oauth2"
+    TF_HTTP_PASSWORD: "{{ gitlab_token }}"
+  register: tofu_destroy_output
+
+- name: Show destroy output
+  ansible.builtin.debug:
+    var: tofu_destroy_output.stdout_lines
+
+- name: Cleanup temp workdir
+  ansible.builtin.file:
+    path: "{{ tofu_workdir.path }}"
+    state: absent
+```
+
+### tasks/gitlab_cleanup.yml
+
+```yaml
+- name: Read IPAM
+  ansible.builtin.slurp:
+    src: "{{ repo_local_path }}/_network/ipam.yaml"
+  register: ipam_raw
+
+- name: Parse IPAM
+  ansible.builtin.set_fact:
+    ipam: "{{ ipam_raw.content | b64decode | from_yaml }}"
+
+- name: Release IP ranges back to freed
+  ansible.builtin.set_fact:
+    ipam_updated: >-
+      {{
+        ipam | combine({
+          'assignments': ipam.assignments | dict2items
+                         | rejectattr('key', 'equalto', cluster_name)
+                         | items2dict,
+          'freed': ipam.freed + [ ipam.assignments[cluster_name] ]
+        })
+      }}
+
+- name: Write updated IPAM
+  ansible.builtin.copy:
+    content: "{{ ipam_updated | to_nice_yaml }}"
+    dest: "{{ repo_local_path }}/_network/ipam.yaml"
+
+- name: Render destroyed.yaml
+  ansible.builtin.template:
+    src: destroyed.yaml.j2
+    dest: "{{ repo_local_path }}/{{ cluster_name }}/destroyed.yaml"
+
+- name: Create _archived directory
+  ansible.builtin.file:
+    path: "{{ repo_local_path }}/_archived"
+    state: directory
+    mode: "0755"
+
+- name: Archive cluster folder
+  ansible.builtin.command:
+    cmd: >
+      mv {{ cluster_name }}
+      _archived/{{ cluster_name }}-{{ ansible_date_time.date }}
+    chdir: "{{ repo_local_path }}"
+
+- name: Git config
+  ansible.builtin.command:
+    cmd: "git config {{ item.key }} {{ item.value }}"
+    chdir: "{{ repo_local_path }}"
+  loop:
+    - { key: "user.name",  value: "{{ git_user_name }}" }
+    - { key: "user.email", value: "{{ git_user_email }}" }
+
+- name: Git add, commit, push
+  ansible.builtin.shell: |
+    git add _network/ipam.yaml
+    git add _archived/
+    git rm -r {{ cluster_name }}/ 2>/dev/null || true
+    git commit -m "feat: destroy cluster {{ cluster_name }} (AWX Job #{{ awx_job_id }})"
+    git push origin main
+  args:
+    chdir: "{{ repo_local_path }}"
+```
+
+### templates/destroyed.yaml.j2
+
+```yaml
+destroyed_at: "{{ ansible_date_time.iso8601 }}"
+destroyed_by: "{{ awx_user_name }}"
+awx_job_id: "{{ awx_job_id }}"
+awx_job_template_name: "{{ awx_job_template_name }}"
+```
+
+### Ergebnis in infra/clusters
+
+```
+infra/clusters/
+├── _network/
+│   └── ipam.yaml              ← Ranges wieder in freed
+├── _archived/
+│   └── prod-01-2026-08-20/    ← archivierter Cluster-Ordner
+│       ├── meta.yaml
+│       ├── terraform.tfvars
+│       ├── versions.yaml
+│       ├── CHANGELOG.md
+│       └── destroyed.yaml     ← wann + von wem gelöscht
+└── dev-01/                    ← noch aktive Cluster
+    └── ...
+```
+
+### AWX Survey für k8s-cluster-destroy
+
+| Frage | Variable | Typ | Pflicht |
+|---|---|---|---|
+| Cluster Name | `cluster_name` | Text | ja |
+| Bestätigung (Name nochmals eingeben) | `confirm_cluster_name` | Text | ja |
+
+---
+
 ## AWX-Variablen (automatisch verfügbar)
 
 AWX injiziert diese Variablen automatisch in jeden Job:
