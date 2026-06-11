@@ -28,6 +28,7 @@ Source of Truth und OpenTofu für die Infrastruktur.
 * [Repository-Struktur (infra/automation + infra/clusters)](awx-cluster-management/02-repo-struktur.md)
 * [Ansible-Rollen (create, scale, upgrade, destroy)](awx-cluster-management/03-ansible-rollen.md)
 * [Netzwerk & IPAM (/16 → /24 pro Cluster)](awx-cluster-management/04-netzwerk-ipam.md)
+* [AWX Survey Management (IP-Ranges synchron halten)](awx-cluster-management/05-awx-survey-management.md)
 
 ### Ansible & AWX
 
