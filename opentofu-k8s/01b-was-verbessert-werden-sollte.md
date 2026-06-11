@@ -117,30 +117,6 @@ terraform {
   command: tofu apply -input=false -auto-approve
 ```
 
-**Lösung — Plan vor Apply:**
-
-```yaml
-- name: tofu plan
-  command: tofu plan -input=false -out=tfplan
-
-- name: tofu apply
-  command: tofu apply -input=false tfplan
-```
-
-**In GitLab CI/CD:** `tfplan` als Job-Artefakt speichern → manueller Review-Schritt möglich bevor Apply läuft:
-
-```yaml
-plan:
-  script: tofu plan -out=tfplan
-  artifacts:
-    paths: [tfplan]
-
-apply:
-  script: tofu apply tfplan
-  when: manual        # ← Mensch bestätigt nach Plan-Review
-  needs: [plan]
-```
-
 ---
 
 ## 4. Kein `.terraform.lock.hcl`
