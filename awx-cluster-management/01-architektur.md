@@ -84,7 +84,7 @@ Ansible Job auf AWX Execution Node
 
 | Template | Zweck | Survey-Felder |
 |---|---|---|
-| `k8s-cluster-create` | Neuen Cluster erstellen | cluster_name, k8s_distro, k8s_version, worker_count, worker_flavor, cp_count, calico_version, containerd_version |
+| `k8s-cluster-create` | Neuen Cluster erstellen | cluster_name, k8s_distro, worker_count, worker_flavor, cp_count, calico_version |
 | `k8s-cluster-scale` | Worker skalieren | cluster_name, worker_count |
 | `k8s-cluster-upgrade` | K8s-Version upgraden | cluster_name, target_version |
 | `k8s-cluster-destroy` | Cluster löschen | cluster_name |
