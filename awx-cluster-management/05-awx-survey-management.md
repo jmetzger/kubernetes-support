@@ -175,8 +175,7 @@ Der AWX-Token kommt als AWX Credential und wird als `awx_token` injiziert.
 
 Beim ersten Einrichten muss der Survey einmalig mit allen verfügbaren
 Blöcken befüllt werden. Dafür liest ein Ansible Playbook die `ipam.yaml`
-und schreibt alle Einträge aus `freed` + den Bereich ab `next_free_octet`
-als Choices in den Survey.
+und schreibt alle Einträge aus `available` als Choices in den Survey.
 
 ```yaml
 # playbooks/awx-survey-init.yml
@@ -201,18 +200,13 @@ als Choices in den Survey.
       ansible.builtin.set_fact:
         ipam: "{{ ipam_raw.content | b64decode | from_yaml }}"
 
-    - name: Build choices from freed + next_free blocks
+    - name: Build choices from available list
       ansible.builtin.set_fact:
         all_choices: >-
-          {% set choices = [] %}
-          {% for entry in ipam.freed %}
-            {% set _ = choices.append(entry.haproxy | regex_replace('\.0/24$', '')) %}
-          {% endfor %}
-          {% set octet = ipam.next_free_octet %}
-          {% for i in range(0, 20) %}
-            {% set _ = choices.append('10.10.' + (octet + i * 3) | string + '.0') %}
-          {% endfor %}
-          {{ choices | sort }}
+          {{ ipam.available
+             | map(attribute='haproxy')
+             | map('regex_replace', '\.0/24$', '')
+             | list }}
 
     - name: GET current survey spec
       ansible.builtin.uri:
