@@ -1,0 +1,52 @@
+---
+- name: Create temp working directory
+  ansible.builtin.tempfile:
+    state: directory
+    prefix: "tofu_destroy_{{ cluster_name }}_"
+  register: tofu_workdir
+
+- name: Read module_version from meta.yaml
+  ansible.builtin.slurp:
+    src: "{{ repo_local_path }}/{{ cluster_name }}/meta.yaml"
+  register: meta_raw
+
+- name: Parse module_version
+  ansible.builtin.set_fact:
+    module_version: "{{ (meta_raw.content | b64decode | from_yaml).module_version }}"
+
+- name: Generate main.tf from template
+  ansible.builtin.template:
+    src: "{{ role_path }}/../k8s_cluster_common/templates/main.tf.j2"
+    dest: "{{ tofu_workdir.path }}/main.tf"
+
+- name: Copy terraform.tfvars into workdir
+  ansible.builtin.copy:
+    src: "{{ repo_local_path }}/{{ cluster_name }}/terraform.tfvars"
+    dest: "{{ tofu_workdir.path }}/terraform.tfvars"
+    remote_src: true
+
+- name: tofu init
+  ansible.builtin.command:
+    cmd: tofu init
+    chdir: "{{ tofu_workdir.path }}"
+  environment:
+    TF_HTTP_USERNAME: "oauth2"
+    TF_HTTP_PASSWORD: "{{ gitlab_token }}"
+
+- name: tofu destroy
+  ansible.builtin.command:
+    cmd: tofu destroy -auto-approve -var-file=terraform.tfvars
+    chdir: "{{ tofu_workdir.path }}"
+  environment:
+    TF_HTTP_USERNAME: "oauth2"
+    TF_HTTP_PASSWORD: "{{ gitlab_token }}"
+  register: tofu_destroy_output
+
+- name: Show destroy output
+  ansible.builtin.debug:
+    var: tofu_destroy_output.stdout_lines
+
+- name: Cleanup temp workdir
+  ansible.builtin.file:
+    path: "{{ tofu_workdir.path }}"
+    state: absent

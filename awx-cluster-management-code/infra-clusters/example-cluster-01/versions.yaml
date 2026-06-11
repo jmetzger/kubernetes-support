@@ -1,0 +1,7 @@
+kubernetes:
+  distribution: rke2
+  version: "1.30"
+calico:
+  version: "3.27.0"
+containerd:
+  version: "1.7.13"

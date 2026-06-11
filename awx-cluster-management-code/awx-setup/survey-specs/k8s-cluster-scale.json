@@ -1,0 +1,25 @@
+{
+  "name": "K8s Cluster skalieren",
+  "description": "",
+  "spec": [
+    {
+      "question_name": "Cluster Name",
+      "question_description": "Name des zu skalierenden Clusters",
+      "variable": "cluster_name",
+      "type": "multiplechoice",
+      "choices": "example-cluster-01",
+      "default": "",
+      "required": true
+    },
+    {
+      "question_name": "Worker Nodes (neue Anzahl)",
+      "question_description": "Neue Anzahl Worker Nodes",
+      "variable": "worker_count",
+      "type": "integer",
+      "default": "",
+      "required": true,
+      "min": 1,
+      "max": 50
+    }
+  ]
+}

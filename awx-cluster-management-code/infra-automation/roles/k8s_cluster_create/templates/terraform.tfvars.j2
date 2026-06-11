@@ -1,0 +1,12 @@
+cluster_name          = "{{ cluster_name }}"
+kubernetes_version    = "{{ k8s_version }}"
+k8s_distro            = "{{ k8s_distro }}"
+worker_count          = {{ worker_count }}
+worker_flavor         = "{{ worker_flavor }}"
+control_plane_count   = {{ cp_count }}
+calico_version        = "{{ calico_version }}"
+containerd_version    = "{{ containerd_version }}"
+
+haproxy_subnet        = "{{ assigned_haproxy }}"
+cp_subnet             = "{{ assigned_cp }}"
+worker_subnet         = "{{ assigned_workers }}"

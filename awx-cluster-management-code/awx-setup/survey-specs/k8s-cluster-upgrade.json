@@ -1,0 +1,24 @@
+{
+  "name": "K8s Cluster upgraden",
+  "description": "",
+  "spec": [
+    {
+      "question_name": "Cluster Name",
+      "question_description": "Name des zu upgradenden Clusters",
+      "variable": "cluster_name",
+      "type": "multiplechoice",
+      "choices": "example-cluster-01",
+      "default": "",
+      "required": true
+    },
+    {
+      "question_name": "Ziel-Version",
+      "question_description": "Neue Kubernetes Version (nur +1 Minor erlaubt)",
+      "variable": "target_version",
+      "type": "multiplechoice",
+      "choices": "1.30\n1.31\n1.32",
+      "default": "",
+      "required": true
+    }
+  ]
+}

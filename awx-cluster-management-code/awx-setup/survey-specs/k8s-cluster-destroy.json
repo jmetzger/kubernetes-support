@@ -1,0 +1,23 @@
+{
+  "name": "K8s Cluster loeschen",
+  "description": "",
+  "spec": [
+    {
+      "question_name": "Cluster Name",
+      "question_description": "Name des zu loeschenden Clusters",
+      "variable": "cluster_name",
+      "type": "multiplechoice",
+      "choices": "example-cluster-01",
+      "default": "",
+      "required": true
+    },
+    {
+      "question_name": "Bestaetigung (Cluster Name nochmals eingeben)",
+      "question_description": "Sicherheitscheck: Cluster-Namen nochmals eingeben",
+      "variable": "confirm_cluster_name",
+      "type": "text",
+      "default": "",
+      "required": true
+    }
+  ]
+}

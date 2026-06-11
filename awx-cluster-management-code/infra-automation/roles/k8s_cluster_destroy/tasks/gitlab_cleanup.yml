@@ -1,0 +1,72 @@
+---
+- name: Read IPAM
+  ansible.builtin.slurp:
+    src: "{{ repo_local_path }}/_network/ipam.yaml"
+  register: ipam_raw
+
+- name: Parse IPAM
+  ansible.builtin.set_fact:
+    ipam: "{{ ipam_raw.content | b64decode | from_yaml }}"
+
+- name: Store released block for survey update
+  ansible.builtin.set_fact:
+    released_ip_block: >-
+      {{ ipam.assignments[cluster_name].haproxy | regex_replace('\.0/24$', '') }}
+
+- name: Release IP ranges back to freed
+  ansible.builtin.set_fact:
+    ipam_updated: >-
+      {{
+        ipam | combine({
+          'assignments': ipam.assignments | dict2items
+                         | rejectattr('key', 'equalto', cluster_name)
+                         | items2dict,
+          'freed': ipam.freed + [ ipam.assignments[cluster_name] ]
+        })
+      }}
+
+- name: Write updated IPAM
+  ansible.builtin.copy:
+    content: "{{ ipam_updated | to_nice_yaml }}"
+    dest: "{{ repo_local_path }}/_network/ipam.yaml"
+
+- name: Render destroyed.yaml
+  ansible.builtin.template:
+    src: destroyed.yaml.j2
+    dest: "{{ repo_local_path }}/{{ cluster_name }}/destroyed.yaml"
+
+- name: Create _archived directory
+  ansible.builtin.file:
+    path: "{{ repo_local_path }}/_archived"
+    state: directory
+    mode: "0755"
+
+- name: Archive cluster folder
+  ansible.builtin.command:
+    cmd: "mv {{ cluster_name }} _archived/{{ cluster_name }}-{{ ansible_date_time.date }}"
+    chdir: "{{ repo_local_path }}"
+
+- name: Git config
+  ansible.builtin.command:
+    cmd: "git config {{ item.key }} {{ item.value }}"
+    chdir: "{{ repo_local_path }}"
+  loop:
+    - { key: "user.name",  value: "{{ git_user_name }}" }
+    - { key: "user.email", value: "{{ git_user_email }}" }
+
+- name: Git add, commit, push
+  ansible.builtin.shell: |
+    git add _network/ipam.yaml
+    git add _archived/
+    git rm -r {{ cluster_name }}/ 2>/dev/null || true
+    git commit -m "feat: destroy cluster {{ cluster_name }} (AWX Job #{{ awx_job_id }})"
+    git push origin main
+  args:
+    chdir: "{{ repo_local_path }}"
+
+- name: Update AWX survey — add released block back to ip_block choices
+  ansible.builtin.include_tasks:
+    file: "{{ role_path }}/../k8s_cluster_common/tasks/update_awx_survey.yml"
+  vars:
+    survey_action: add
+    survey_ip_block: "{{ released_ip_block }}"

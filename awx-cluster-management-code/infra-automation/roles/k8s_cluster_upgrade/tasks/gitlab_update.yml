@@ -1,0 +1,39 @@
+---
+- name: Update kubernetes_version in tfvars
+  ansible.builtin.lineinfile:
+    path: "{{ repo_local_path }}/{{ cluster_name }}/terraform.tfvars"
+    regexp: '^kubernetes_version\s+='
+    line: 'kubernetes_version    = "{{ target_version }}"'
+
+- name: Update versions.yaml
+  ansible.builtin.lineinfile:
+    path: "{{ repo_local_path }}/{{ cluster_name }}/versions.yaml"
+    regexp: '^\s+version:.*'
+    line: '  version: "{{ target_version }}"'
+
+- name: Append CHANGELOG entry
+  ansible.builtin.blockinfile:
+    path: "{{ repo_local_path }}/{{ cluster_name }}/CHANGELOG.md"
+    insertafter: EOF
+    block: |
+
+      ## {{ ansible_date_time.date }} | K8s Upgrade
+      - K8s Version: {{ current_k8s_version }} → {{ target_version }}
+      - AWX Job: #{{ awx_job_id }} ({{ awx_job_template_name }}) — {{ awx_user_name }}
+    marker: ""
+
+- name: Git config
+  ansible.builtin.command:
+    cmd: "git config {{ item.key }} {{ item.value }}"
+    chdir: "{{ repo_local_path }}"
+  loop:
+    - { key: "user.name",  value: "{{ git_user_name }}" }
+    - { key: "user.email", value: "{{ git_user_email }}" }
+
+- name: Git add, commit, push
+  ansible.builtin.shell: |
+    git add {{ cluster_name }}/
+    git commit -m "feat: upgrade {{ cluster_name }} {{ current_k8s_version }} → {{ target_version }} (AWX Job #{{ awx_job_id }})"
+    git push origin main
+  args:
+    chdir: "{{ repo_local_path }}"

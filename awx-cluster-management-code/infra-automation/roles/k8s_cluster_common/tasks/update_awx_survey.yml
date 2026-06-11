@@ -1,0 +1,56 @@
+---
+# survey_action: remove (after create) | add (after destroy)
+# survey_ip_block: e.g. "10.10.1.0"
+
+- name: GET current survey spec from AWX
+  ansible.builtin.uri:
+    url: "{{ awx_url }}/api/v2/job_templates/{{ awx_create_template_id }}/survey_spec/"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ awx_token }}"
+  register: current_survey
+
+- name: Parse current ip_block choices into list
+  ansible.builtin.set_fact:
+    current_choices: >-
+      {{ (current_survey.json.spec
+          | selectattr('variable', 'equalto', 'ip_block')
+          | list | first).choices.split('\n') | select | list }}
+
+- name: Remove block from choices (after create)
+  ansible.builtin.set_fact:
+    updated_choices: >-
+      {{ current_choices | reject('equalto', survey_ip_block) | list }}
+  when: survey_action == 'remove'
+
+- name: Add block back to choices (after destroy)
+  ansible.builtin.set_fact:
+    updated_choices: >-
+      {{ (current_choices + [survey_ip_block]) | sort }}
+  when: survey_action == 'add'
+
+- name: Rebuild full survey spec with updated choices
+  ansible.builtin.set_fact:
+    updated_spec: >-
+      {{
+        current_survey.json.spec | map('combine',
+          {'choices': updated_choices | join('\n')}
+          if item.variable == 'ip_block' else {}
+        ) | list
+      }}
+  loop: "{{ current_survey.json.spec }}"
+  loop_control:
+    loop_var: item
+
+- name: POST updated survey spec back to AWX
+  ansible.builtin.uri:
+    url: "{{ awx_url }}/api/v2/job_templates/{{ awx_create_template_id }}/survey_spec/"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ awx_token }}"
+    body_format: json
+    body:
+      name: "{{ current_survey.json.name }}"
+      description: "{{ current_survey.json.description }}"
+      spec: "{{ updated_spec }}"
+    status_code: 200

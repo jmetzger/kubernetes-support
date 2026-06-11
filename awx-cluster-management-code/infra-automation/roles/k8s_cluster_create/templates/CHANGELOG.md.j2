@@ -1,0 +1,9 @@
+# Cluster {{ cluster_name }}
+
+## {{ ansible_date_time.date }} | Erstellt
+- K8s: {{ k8s_distro }} {{ k8s_version }}
+- Worker: {{ worker_count }} x {{ worker_flavor }}
+- Control Plane: {{ cp_count }} Nodes
+- Calico: {{ calico_version }} / containerd: {{ containerd_version }}
+- Netz haproxy: {{ assigned_haproxy }} / cp: {{ assigned_cp }} / worker: {{ assigned_workers }}
+- AWX Job: #{{ awx_job_id }} ({{ awx_job_template_name }}) — {{ awx_user_name }}

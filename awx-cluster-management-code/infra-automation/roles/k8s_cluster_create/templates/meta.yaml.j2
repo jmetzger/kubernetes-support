@@ -1,0 +1,16 @@
+awx:
+  template_id: "{{ awx_job_template_id }}"
+  template_name: "{{ awx_job_template_name }}"
+  job_id: "{{ awx_job_id }}"
+  launched_by: "{{ awx_user_name }}"
+  created_at: "{{ ansible_date_time.iso8601 }}"
+module_version: "{{ module_version | default('v1.0.0') }}"
+survey_variables:
+  cluster_name: "{{ cluster_name }}"
+  k8s_distro: "{{ k8s_distro }}"
+  k8s_version: "{{ k8s_version }}"
+  worker_count: {{ worker_count }}
+  worker_flavor: "{{ worker_flavor }}"
+  control_plane_count: {{ cp_count }}
+  calico_version: "{{ calico_version }}"
+  containerd_version: "{{ containerd_version }}"

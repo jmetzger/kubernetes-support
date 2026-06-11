@@ -1,0 +1,44 @@
+---
+- name: Clone clusters repository
+  ansible.builtin.git:
+    repo: "{{ clusters_repo }}"
+    dest: "{{ repo_local_path }}"
+    version: main
+
+- name: Fail if cluster does not exist
+  ansible.builtin.fail:
+    msg: "Cluster '{{ cluster_name }}' nicht gefunden."
+  when: not (repo_local_path + '/' + cluster_name) is directory
+
+- name: Read current terraform.tfvars
+  ansible.builtin.slurp:
+    src: "{{ repo_local_path }}/{{ cluster_name }}/terraform.tfvars"
+  register: current_tfvars_raw
+
+- name: Parse current kubernetes_version
+  ansible.builtin.set_fact:
+    current_k8s_version: >-
+      {{ current_tfvars_raw.content | b64decode
+         | regex_search('kubernetes_version\s+=\s+"([^"]+)"', '\1') | first }}
+
+- name: Fail if already on target version
+  ansible.builtin.fail:
+    msg: "Cluster läuft bereits auf {{ target_version }}."
+  when: current_k8s_version == target_version
+
+- name: Fail on downgrade
+  ansible.builtin.fail:
+    msg: "Downgrade nicht erlaubt: {{ current_k8s_version }} → {{ target_version }}"
+  when: target_version is version(current_k8s_version, '<')
+
+- name: Parse minor versions
+  ansible.builtin.set_fact:
+    current_minor: "{{ current_k8s_version.split('.')[1] | int }}"
+    target_minor:  "{{ target_version.split('.')[1] | int }}"
+
+- name: Fail on minor version skip
+  ansible.builtin.fail:
+    msg: >
+      Minor-Version-Skip nicht erlaubt: {{ current_k8s_version }} → {{ target_version }}.
+      Bitte schrittweise upgraden.
+  when: (target_minor | int) - (current_minor | int) > 1

@@ -1,0 +1,4 @@
+---
+- ansible.builtin.import_tasks: preflight.yml
+- ansible.builtin.import_tasks: tofu_destroy.yml
+- ansible.builtin.import_tasks: gitlab_cleanup.yml

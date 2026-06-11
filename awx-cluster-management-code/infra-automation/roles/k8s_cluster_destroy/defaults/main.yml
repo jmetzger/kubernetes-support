@@ -1,0 +1,9 @@
+---
+gitlab_url: "https://gitlab.example.com"
+gitlab_project_id: "123"
+clusters_repo: "https://oauth2:{{ gitlab_token }}@gitlab.example.com/infra/clusters.git"
+repo_local_path: "/tmp/clusters-{{ cluster_name }}"
+git_user_name: "AWX Automation"
+git_user_email: "awx@example.com"
+awx_url: "https://awx.example.com"
+awx_create_template_id: "42"

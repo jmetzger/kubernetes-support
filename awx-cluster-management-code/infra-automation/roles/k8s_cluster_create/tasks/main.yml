@@ -1,0 +1,5 @@
+---
+- ansible.builtin.import_tasks: gitlab_setup.yml
+
+- ansible.builtin.include_tasks:
+    file: "{{ role_path }}/../k8s_cluster_common/tasks/tofu_apply.yml"

@@ -1,0 +1,7 @@
+---
+- name: Scale Kubernetes Cluster Workers
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  roles:
+    - k8s_cluster_scale

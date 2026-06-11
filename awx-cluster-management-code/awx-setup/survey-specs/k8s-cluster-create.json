@@ -1,0 +1,87 @@
+{
+  "name": "K8s Cluster erstellen",
+  "description": "",
+  "spec": [
+    {
+      "question_name": "Cluster Name",
+      "question_description": "Eindeutiger Name des Clusters (z.B. prod-01)",
+      "variable": "cluster_name",
+      "type": "text",
+      "default": "",
+      "required": true,
+      "min": 3,
+      "max": 40
+    },
+    {
+      "question_name": "IP Block",
+      "question_description": "Verfuegbarer Netzwerk-Block (haproxy /24, cp /24, worker /24)",
+      "variable": "ip_block",
+      "type": "multiplechoice",
+      "choices": "10.10.1.0\n10.10.4.0\n10.10.7.0",
+      "default": "",
+      "required": true
+    },
+    {
+      "question_name": "K8s Distribution",
+      "question_description": "Kubernetes Distribution",
+      "variable": "k8s_distro",
+      "type": "multiplechoice",
+      "choices": "rke2\nk3s\nkubeadm",
+      "default": "rke2",
+      "required": true
+    },
+    {
+      "question_name": "K8s Version",
+      "question_description": "Kubernetes Version",
+      "variable": "k8s_version",
+      "type": "multiplechoice",
+      "choices": "1.30\n1.31\n1.32",
+      "default": "1.31",
+      "required": true
+    },
+    {
+      "question_name": "Worker Nodes (Anzahl)",
+      "question_description": "Anzahl der Worker Nodes",
+      "variable": "worker_count",
+      "type": "integer",
+      "default": "3",
+      "required": true,
+      "min": 1,
+      "max": 50
+    },
+    {
+      "question_name": "Worker Flavor",
+      "question_description": "VM-Groesse fuer Worker Nodes",
+      "variable": "worker_flavor",
+      "type": "multiplechoice",
+      "choices": "c3.large\nc3.xlarge\nc3.2xlarge",
+      "default": "c3.large",
+      "required": true
+    },
+    {
+      "question_name": "Control Plane Nodes",
+      "question_description": "Anzahl Control Plane Nodes (1 fuer Dev, 3 fuer HA)",
+      "variable": "cp_count",
+      "type": "multiplechoice",
+      "choices": "1\n3",
+      "default": "3",
+      "required": true
+    },
+    {
+      "question_name": "Calico Version",
+      "question_description": "Calico CNI Version",
+      "variable": "calico_version",
+      "type": "text",
+      "default": "3.27.0",
+      "required": true
+    },
+    {
+      "question_name": "containerd Version",
+      "question_description": "containerd Version",
+      "variable": "containerd_version",
+      "type": "text",
+      "default": "1.7.13",
+      "required": true
+    }
+  ]
+}

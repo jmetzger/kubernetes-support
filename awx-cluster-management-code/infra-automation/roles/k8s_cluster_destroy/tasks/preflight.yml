@@ -1,0 +1,18 @@
+---
+- name: Clone clusters repository
+  ansible.builtin.git:
+    repo: "{{ clusters_repo }}"
+    dest: "{{ repo_local_path }}"
+    version: main
+
+- name: Fail if cluster does not exist
+  ansible.builtin.fail:
+    msg: "Cluster '{{ cluster_name }}' nicht gefunden."
+  when: not (repo_local_path + '/' + cluster_name) is directory
+
+- name: Fail if confirmation does not match
+  ansible.builtin.fail:
+    msg: >
+      Sicherheitscheck fehlgeschlagen: '{{ confirm_cluster_name }}'
+      stimmt nicht mit '{{ cluster_name }}' überein.
+  when: confirm_cluster_name != cluster_name

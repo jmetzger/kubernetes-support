@@ -1,0 +1,14 @@
+terraform {
+  backend "http" {
+    address        = "{{ gitlab_url }}/api/v4/projects/{{ gitlab_project_id }}/terraform/state/{{ cluster_name }}"
+    lock_address   = "{{ gitlab_url }}/api/v4/projects/{{ gitlab_project_id }}/terraform/state/{{ cluster_name }}/lock"
+    unlock_address = "{{ gitlab_url }}/api/v4/projects/{{ gitlab_project_id }}/terraform/state/{{ cluster_name }}/lock"
+    lock_method    = "POST"
+    unlock_method  = "DELETE"
+    retry_wait_min = 5
+  }
+}
+
+module "cluster" {
+  source = "git::{{ gitlab_url }}/infra/automation.git//tofu-modules/k8s-cluster?ref={{ module_version }}"
+}

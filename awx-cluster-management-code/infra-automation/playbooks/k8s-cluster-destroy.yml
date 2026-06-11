@@ -1,0 +1,7 @@
+---
+- name: Destroy Kubernetes Cluster
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  roles:
+    - k8s_cluster_destroy

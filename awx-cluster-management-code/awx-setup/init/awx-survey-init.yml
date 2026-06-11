@@ -1,0 +1,178 @@
+---
+# Einmaliges Playbook zum initialen Befuellen aller AWX Survey-Specs.
+# Ausfuehren nach dem ersten Einrichten der AWX Job Templates.
+#
+# ansible-playbook awx-survey-init.yml \
+#   -e awx_token=$AWX_TOKEN \
+#   -e gitlab_token=$GITLAB_TOKEN
+
+- name: AWX Survey-Specs initialisieren
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    awx_url: "https://awx.example.com"
+    awx_create_template_id: "42"
+    awx_scale_template_id: "43"
+    awx_upgrade_template_id: "44"
+    awx_destroy_template_id: "45"
+    gitlab_url: "https://gitlab.example.com"
+    gitlab_project_id: "123"
+    clusters_repo_local: "/tmp/clusters-init"
+    clusters_repo: "https://oauth2:{{ gitlab_token }}@gitlab.example.com/infra/clusters.git"
+
+  tasks:
+    - name: Clone clusters repository
+      ansible.builtin.git:
+        repo: "{{ clusters_repo }}"
+        dest: "{{ clusters_repo_local }}"
+        version: main
+
+    - name: Read IPAM
+      ansible.builtin.slurp:
+        src: "{{ clusters_repo_local }}/_network/ipam.yaml"
+      register: ipam_raw
+
+    - name: Parse IPAM
+      ansible.builtin.set_fact:
+        ipam: "{{ ipam_raw.content | b64decode | from_yaml }}"
+
+    # --- ip_block Choices fuer create-Survey aufbauen ---
+
+    - name: Build ip_block choices (freed + next 20 free blocks)
+      ansible.builtin.set_fact:
+        ip_block_choices: >-
+          {% set choices = [] %}
+          {% for entry in ipam.freed %}
+            {% set _ = choices.append(entry.haproxy | regex_replace('\.0/24$', '')) %}
+          {% endfor %}
+          {% for i in range(0, 20) %}
+            {% set octet = ipam.next_free_octet + (i * 3) %}
+            {% if octet <= 252 %}
+              {% set _ = choices.append('10.10.' + octet | string + '.0') %}
+            {% endif %}
+          {% endfor %}
+          {{ choices | sort }}
+
+    # --- cluster_name Choices fuer scale/upgrade/destroy aufbauen ---
+
+    - name: Find active cluster folders
+      ansible.builtin.find:
+        paths: "{{ clusters_repo_local }}"
+        file_type: directory
+        excludes:
+          - "_network"
+          - "_archived"
+      register: cluster_dirs
+
+    - name: Build cluster_name choices
+      ansible.builtin.set_fact:
+        cluster_choices: >-
+          {{ cluster_dirs.files | map(attribute='path') | map('basename') | sort | list }}
+
+    # --- Survey-Specs POSTen ---
+
+    - name: Load create survey spec from file
+      ansible.builtin.set_fact:
+        create_spec: "{{ lookup('file', playbook_dir + '/../survey-specs/k8s-cluster-create.json') | from_json }}"
+
+    - name: Update ip_block choices in create spec
+      ansible.builtin.set_fact:
+        create_spec_updated: >-
+          {{
+            create_spec | combine({
+              'spec': create_spec.spec | map('combine',
+                {'choices': ip_block_choices | join('\n')}
+                if item.variable == 'ip_block' else {}
+              ) | list
+            })
+          }}
+      loop: "{{ create_spec.spec }}"
+      loop_control:
+        loop_var: item
+
+    - name: POST create survey spec
+      ansible.builtin.uri:
+        url: "{{ awx_url }}/api/v2/job_templates/{{ awx_create_template_id }}/survey_spec/"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ awx_token }}"
+        body_format: json
+        body: "{{ create_spec_updated }}"
+        status_code: 200
+
+    - name: Load scale survey spec and update cluster choices
+      ansible.builtin.uri:
+        url: "{{ awx_url }}/api/v2/job_templates/{{ awx_scale_template_id }}/survey_spec/"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ awx_token }}"
+        body_format: json
+        body:
+          name: "K8s Cluster skalieren"
+          description: ""
+          spec:
+            - question_name: "Cluster Name"
+              variable: "cluster_name"
+              type: "multiplechoice"
+              choices: "{{ cluster_choices | join('\n') }}"
+              required: true
+            - question_name: "Worker Nodes (neue Anzahl)"
+              variable: "worker_count"
+              type: "integer"
+              default: ""
+              required: true
+              min: 1
+              max: 50
+        status_code: 200
+
+    - name: POST upgrade survey spec
+      ansible.builtin.uri:
+        url: "{{ awx_url }}/api/v2/job_templates/{{ awx_upgrade_template_id }}/survey_spec/"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ awx_token }}"
+        body_format: json
+        body:
+          name: "K8s Cluster upgraden"
+          description: ""
+          spec:
+            - question_name: "Cluster Name"
+              variable: "cluster_name"
+              type: "multiplechoice"
+              choices: "{{ cluster_choices | join('\n') }}"
+              required: true
+            - question_name: "Ziel-Version"
+              variable: "target_version"
+              type: "multiplechoice"
+              choices: "1.30\n1.31\n1.32"
+              required: true
+        status_code: 200
+
+    - name: POST destroy survey spec
+      ansible.builtin.uri:
+        url: "{{ awx_url }}/api/v2/job_templates/{{ awx_destroy_template_id }}/survey_spec/"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ awx_token }}"
+        body_format: json
+        body:
+          name: "K8s Cluster loeschen"
+          description: ""
+          spec:
+            - question_name: "Cluster Name"
+              variable: "cluster_name"
+              type: "multiplechoice"
+              choices: "{{ cluster_choices | join('\n') }}"
+              required: true
+            - question_name: "Bestaetigung"
+              variable: "confirm_cluster_name"
+              type: "text"
+              default: ""
+              required: true
+        status_code: 200
+
+    - name: Cleanup
+      ansible.builtin.file:
+        path: "{{ clusters_repo_local }}"
+        state: absent
