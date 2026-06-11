@@ -44,8 +44,11 @@ roles/
 │       └── gitlab_cleanup.yml    # IPAM freigeben, Ordner archivieren
 │
 └── k8s_cluster_common/
+    ├── defaults/
+    │   └── main.yml              # awx_url, awx_create_template_id
     └── tasks/
-        └── tofu_apply.yml        # von create/scale/upgrade genutzt
+        ├── tofu_apply.yml        # von create/scale/upgrade genutzt
+        └── update_awx_survey.yml # von create/destroy genutzt
 ```
 
 ---

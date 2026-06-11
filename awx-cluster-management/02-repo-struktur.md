@@ -18,8 +18,11 @@ infra/automation/
 │   ├── k8s_cluster_upgrade/
 │   ├── k8s_cluster_destroy/
 │   └── k8s_cluster_common/
+│       ├── defaults/
+│       │   └── main.yml            ← awx_url, awx_create_template_id
 │       └── tasks/
-│           └── tofu_apply.yml      ← geteilt von allen Rollen
+│           ├── tofu_apply.yml      ← geteilt von create/scale/upgrade
+│           └── update_awx_survey.yml ← geteilt von create/destroy
 ├── tofu-modules/
 │   └── k8s-cluster/
 │       ├── main.tf
