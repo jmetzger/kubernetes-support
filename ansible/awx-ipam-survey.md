@@ -117,50 +117,15 @@ curl -s https://awx.example.com/api/v2/job_templates/7/survey_spec/ \
 
 ### POST ersetzt alles — alle Felder müssen mitgesendet werden
 
-Wenn jetzt nur `ip_range` im neuen POST steht, sind `environment` und `owner` **weg**.
-Der vollständige neue Spec muss immer komplett übergeben werden:
+Lösung: erst den bestehenden Spec per **GET** lesen, nur das geänderte Feld
+überschreiben, den Rest unverändert übernehmen — dann alles per **POST** zurückschreiben.
 
-```bash
-curl -s -X POST https://awx.example.com/api/v2/job_templates/7/survey_spec/ \
-  -H "Authorization: Bearer abc123xyz..." \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "IPAM",
-    "description": "",
-    "spec": [
-      {
-        "question_name": "IP Range",
-        "variable": "ip_range",
-        "type": "multiplechoice",
-        "choices": "10.0.2.0/24\n10.0.3.0/24",
-        "required": true
-      },
-      {
-        "question_name": "Umgebung",
-        "variable": "environment",
-        "type": "multiplechoice",
-        "choices": "dev\nstaging\nprod",
-        "required": true
-      },
-      {
-        "question_name": "Verantwortlicher",
-        "variable": "owner",
-        "type": "text",
-        "default": "",
-        "required": false
-      }
-    ]
-  }'
-```
-
-> Erfolgreich = HTTP 200, kein Body
-
-### Im Playbook: alle Felder zusammenbauen
+### Ansible Playbook: dynamisch GET → modify → POST
 
 ```yaml
-# awx-survey-update-full.yml
+# awx-survey-update-dynamic.yml
 ---
-- name: AWX Survey-Spec mit mehreren Feldern ersetzen
+- name: AWX Survey-Spec dynamisch aktualisieren (nur ip_range aus GitLab)
   hosts: localhost
   gather_facts: false
 
@@ -172,6 +137,14 @@ curl -s -X POST https://awx.example.com/api/v2/job_templates/7/survey_spec/ \
     gitlab_ref: "main"
 
   tasks:
+    - name: Aktuellen Survey-Spec aus AWX laden
+      uri:
+        url: "{{ awx_url }}/api/v2/job_templates/{{ awx_job_template_id }}/survey_spec/"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ awx_token }}"
+      register: current_spec
+
     - name: ipam.json aus GitLab laden
       uri:
         url: "{{ gitlab_url }}/api/v4/projects/{{ gitlab_project_id }}/repository/files/ipam.json/raw?ref={{ gitlab_ref }}"
@@ -184,7 +157,15 @@ curl -s -X POST https://awx.example.com/api/v2/job_templates/7/survey_spec/ \
       set_fact:
         ipam_data: "{{ gitlab_response.content | from_json }}"
 
-    - name: Kompletten Survey-Spec ersetzen (alle Felder mitsenden!)
+    - name: Spec dynamisch zusammenbauen (nur ip_range-Choices ersetzen)
+      set_fact:
+        updated_spec: >-
+          {{ updated_spec | default([]) +
+             [item | combine({'choices': ipam_data.available | join('\n')}
+               if item.variable == 'ip_range' else {})] }}
+      loop: "{{ current_spec.json.spec }}"
+
+    - name: Aktualisierten Spec zurückschreiben (POST)
       uri:
         url: "{{ awx_url }}/api/v2/job_templates/{{ awx_job_template_id }}/survey_spec/"
         method: POST
@@ -192,29 +173,40 @@ curl -s -X POST https://awx.example.com/api/v2/job_templates/7/survey_spec/ \
           Authorization: "Bearer {{ awx_token }}"
         body_format: json
         body:
-          name: "IPAM"
-          description: ""
-          spec:
-            - question_name: "IP Range"
-              variable: "ip_range"
-              type: "multiplechoice"
-              choices: "{{ ipam_data.available | join('\n') }}"
-              required: true
-            - question_name: "Umgebung"
-              variable: "environment"
-              type: "multiplechoice"
-              choices: "dev\nstaging\nprod"
-              required: true
-            - question_name: "Verantwortlicher"
-              variable: "owner"
-              type: "text"
-              default: ""
-              required: false
+          name: "{{ current_spec.json.name }}"
+          description: "{{ current_spec.json.description }}"
+          spec: "{{ updated_spec }}"
         status_code: 200
 ```
 
-> **Merkregel:** POST auf `/survey_spec/` = kompletter Austausch.
-> Wer nur `ip_range` schickt, löscht alle anderen Fragen stillschweigend.
+Der Loop geht durch jeden Eintrag in `current_spec.json.spec`:
+- `variable == 'ip_range'` → `combine({'choices': ...})` überschreibt nur die Choices
+- alle anderen Felder → `combine({})` = keine Änderung, 1:1 übernommen
+
+`name` und `description` kommen ebenfalls aus dem bestehenden Spec.
+
+### curl + jq: One-Liner
+
+```bash
+# Neue Choices aus GitLab holen
+NEW_CHOICES=$(curl -s \
+  "https://gitlab.example.com/api/v4/projects/42/repository/files/ipam.json/raw?ref=main" \
+  -H "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  | jq -r '.available | join("\n")')
+
+# GET → jq nur ip_range patchen → direkt als POST weiterleiten
+curl -s "https://awx.example.com/api/v2/job_templates/7/survey_spec/" \
+  -H "Authorization: Bearer $AWX_TOKEN" \
+| jq --arg choices "$NEW_CHOICES" \
+  '.spec = [.spec[] | if .variable == "ip_range" then .choices = $choices else . end]' \
+| curl -s -X POST "https://awx.example.com/api/v2/job_templates/7/survey_spec/" \
+  -H "Authorization: Bearer $AWX_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d @-
+```
+
+> `jq` patcht nur das `ip_range`-Element; alle anderen Felder (`environment`,
+> `owner`, …) fließen unverändert durch. Erfolgreich = HTTP 200, kein Body.
 
 ---
 
