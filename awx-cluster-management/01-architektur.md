@@ -100,7 +100,7 @@ Job Template
 ├── GitLab Token     → wird als {{ gitlab_token }} injiziert
 │                      Rechte: infra/automation lesen,
 │                              infra/clusters lesen + schreiben
-├── Cloud Provider   → Env-Variablen (OS_AUTH_URL, OS_USERNAME, ...)
+├── Provider   → Env-Variablen (OS_AUTH_URL, OS_USERNAME, ...)
 └── Survey           → cluster_name, k8s_version, ...
 ```
 
