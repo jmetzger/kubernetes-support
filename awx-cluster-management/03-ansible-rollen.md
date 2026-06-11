@@ -154,6 +154,13 @@ git_user_email: "awx@example.com"
     git push origin main
   args:
     chdir: "{{ repo_local_path }}"
+
+- name: Update AWX survey — remove assigned block from ip_block choices
+  ansible.builtin.include_tasks:
+    file: "../../k8s_cluster_common/tasks/update_awx_survey.yml"
+  vars:
+    survey_action: remove
+    survey_ip_block: "{{ assigned_haproxy | regex_replace('\\.0/24$', '') }}"
 ```
 
 ### templates/terraform.tfvars.j2
@@ -589,6 +596,13 @@ roles/
     git push origin main
   args:
     chdir: "{{ repo_local_path }}"
+
+- name: Update AWX survey — add released block back to ip_block choices
+  ansible.builtin.include_tasks:
+    file: "../../k8s_cluster_common/tasks/update_awx_survey.yml"
+  vars:
+    survey_action: add
+    survey_ip_block: "{{ released_ip_block }}"
 ```
 
 ### templates/destroyed.yaml.j2
