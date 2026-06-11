@@ -23,7 +23,7 @@ Automatisiertes Deployen von Kubernetes-Clustern auf VMware vSphere via GitLab C
 
 Vollständiger Code getrennt nach Repos und AWX-Setup — direkt einsatzbereit.
 
-* [awx-cluster-management-code/](awx-cluster-management-code/) — infra-automation, infra-clusters, awx-setup
+* [awx-cluster-management-code/](awx-cluster-management-code/README.md) — infra-automation, infra-clusters, awx-setup
 
 ### AWX + GitLab + OpenTofu: Cluster Management
 
