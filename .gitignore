@@ -1,0 +1,28 @@
+# Secrets
+.env
+*.tfvars
+*.tfvars.json
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+*.tfplan
+
+# Ansible
+*.retry
+ansible/inventory/hosts_generated
+
+# Kubeconfig
+kubeconfig
+kubeconfig.yaml
+*.kubeconfig
+
+# Packer
+packer_cache/
+*.box
+
+# OS
+.DS_Store
+Thumbs.db

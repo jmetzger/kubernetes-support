@@ -19,9 +19,11 @@ Automatisiertes Deployen von Kubernetes-Clustern auf VMware vSphere via GitLab C
 * [GitLab CI/CD Deployment mit OpenTofu](opentofu-k8s/05-gitlab-cicd-deployment.md)
 * [ArgoCD Autopilot — GitOps vom ersten Tag](opentofu-k8s/03-argocd-autopilot.md)
 
-### Ansible Vault + GitLab CI/CD
+### Ansible & AWX
 
-* [Komplettes Beispiel-Setup](ansible-vault-example/SETUP.md)
+* [Komplettes Beispiel-Setup (Ansible Vault + GitLab CI/CD)](ansible-vault-example/SETUP.md)
+* [AWX Survey-Spec dynamisch aus GitLab befüllen (IPAM)](ansible/awx-ipam-survey.md)
+* [Survey-Formulare in AWX](ansible/ansible-survey.md)
 
 ### Persistent Storage
 
