@@ -23,6 +23,201 @@ GitLab (ipam.json)  →  Ansible liest JSON  →  uri: POST → AWX Survey-Spec
 
 ---
 
+## AWX-Token einrichten
+
+Ein persönlicher Token (Bearer) wird benötigt, damit das Playbook die AWX API aufrufen darf.
+
+### In der AWX-Oberfläche
+
+1. Oben rechts auf den Benutzernamen klicken → **User Details**
+2. Tab **Tokens** → **Add**
+3. Felder ausfüllen:
+   - **Description:** `IPAM Automation`
+   - **Application:** leer lassen (persönlicher Token, keine OAuth-App)
+   - **Scope:** `Write`
+4. **Save** — der Token wird **einmalig** angezeigt, sofort kopieren und sicher ablegen
+
+```
+Token: abc123xyz...  ← nur jetzt sichtbar!
+```
+
+### Alternativ per API (curl)
+
+```bash
+# Token erzeugen (Basic Auth mit AWX-User)
+curl -s -X POST https://awx.example.com/api/v2/users/1/tokens/ \
+  -u admin:password \
+  -H "Content-Type: application/json" \
+  -d '{"description": "IPAM Automation", "scope": "write"}' \
+  | python3 -m json.tool
+
+# Antwort enthält:
+# "token": "abc123xyz..."
+```
+
+> **Hinweis:** `/api/v2/users/` liefert die eigene User-ID.
+> Mit `scope: write` kann der Token Job Templates und Survey-Specs verändern.
+> `scope: read` reicht für reine Lesezugriffe.
+
+### Token prüfen
+
+```bash
+curl -s https://awx.example.com/api/v2/me/ \
+  -H "Authorization: Bearer abc123xyz..." \
+  | python3 -m json.tool
+```
+
+---
+
+## Survey-Spec komplett ersetzen (POST bei bestehendem Survey)
+
+Die AWX-API kennt für `/survey_spec/` **nur POST** — kein PATCH, kein PUT.
+Das bedeutet: jeder POST **überschreibt den gesamten Spec**, egal was vorher drin war.
+
+### Ausgangslage: Survey mit mehreren Feldern
+
+Angenommen, das Job Template hat bereits einen Survey mit drei Fragen:
+
+```bash
+# Aktuellen Spec abrufen
+curl -s https://awx.example.com/api/v2/job_templates/7/survey_spec/ \
+  -H "Authorization: Bearer abc123xyz..." \
+  | python3 -m json.tool
+```
+
+```json
+{
+  "name": "IPAM",
+  "description": "",
+  "spec": [
+    {
+      "question_name": "IP Range",
+      "variable": "ip_range",
+      "type": "multiplechoice",
+      "choices": "10.0.1.0/24\n10.0.2.0/24\n10.0.3.0/24",
+      "required": true
+    },
+    {
+      "question_name": "Umgebung",
+      "variable": "environment",
+      "type": "multiplechoice",
+      "choices": "dev\nstaging\nprod",
+      "required": true
+    },
+    {
+      "question_name": "Verantwortlicher",
+      "variable": "owner",
+      "type": "text",
+      "default": "",
+      "required": false
+    }
+  ]
+}
+```
+
+### POST ersetzt alles — alle Felder müssen mitgesendet werden
+
+Wenn jetzt nur `ip_range` im neuen POST steht, sind `environment` und `owner` **weg**.
+Der vollständige neue Spec muss immer komplett übergeben werden:
+
+```bash
+curl -s -X POST https://awx.example.com/api/v2/job_templates/7/survey_spec/ \
+  -H "Authorization: Bearer abc123xyz..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "IPAM",
+    "description": "",
+    "spec": [
+      {
+        "question_name": "IP Range",
+        "variable": "ip_range",
+        "type": "multiplechoice",
+        "choices": "10.0.2.0/24\n10.0.3.0/24",
+        "required": true
+      },
+      {
+        "question_name": "Umgebung",
+        "variable": "environment",
+        "type": "multiplechoice",
+        "choices": "dev\nstaging\nprod",
+        "required": true
+      },
+      {
+        "question_name": "Verantwortlicher",
+        "variable": "owner",
+        "type": "text",
+        "default": "",
+        "required": false
+      }
+    ]
+  }'
+```
+
+> Erfolgreich = HTTP 200, kein Body
+
+### Im Playbook: alle Felder zusammenbauen
+
+```yaml
+# awx-survey-update-full.yml
+---
+- name: AWX Survey-Spec mit mehreren Feldern ersetzen
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    awx_url: "https://awx.example.com"
+    awx_job_template_id: "7"
+    gitlab_url: "https://gitlab.example.com"
+    gitlab_project_id: "42"
+    gitlab_ref: "main"
+
+  tasks:
+    - name: ipam.json aus GitLab laden
+      uri:
+        url: "{{ gitlab_url }}/api/v4/projects/{{ gitlab_project_id }}/repository/files/ipam.json/raw?ref={{ gitlab_ref }}"
+        headers:
+          PRIVATE-TOKEN: "{{ gitlab_token }}"
+        return_content: true
+      register: gitlab_response
+
+    - name: JSON parsen
+      set_fact:
+        ipam_data: "{{ gitlab_response.content | from_json }}"
+
+    - name: Kompletten Survey-Spec ersetzen (alle Felder mitsenden!)
+      uri:
+        url: "{{ awx_url }}/api/v2/job_templates/{{ awx_job_template_id }}/survey_spec/"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ awx_token }}"
+        body_format: json
+        body:
+          name: "IPAM"
+          description: ""
+          spec:
+            - question_name: "IP Range"
+              variable: "ip_range"
+              type: "multiplechoice"
+              choices: "{{ ipam_data.available | join('\n') }}"
+              required: true
+            - question_name: "Umgebung"
+              variable: "environment"
+              type: "multiplechoice"
+              choices: "dev\nstaging\nprod"
+              required: true
+            - question_name: "Verantwortlicher"
+              variable: "owner"
+              type: "text"
+              default: ""
+              required: false
+        status_code: 200
+```
+
+> **Merkregel:** POST auf `/survey_spec/` = kompletter Austausch.
+> Wer nur `ip_range` schickt, löscht alle anderen Fragen stillschweigend.
+
+---
+
 ## Schritt 1: GitLab-Repository anlegen
 
 Im GitLab ein Projekt `ipam-data` erstellen und folgende Datei committen:
