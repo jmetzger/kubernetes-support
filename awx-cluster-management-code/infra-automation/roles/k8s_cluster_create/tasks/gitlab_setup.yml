@@ -19,33 +19,30 @@
   ansible.builtin.set_fact:
     ipam: "{{ ipam_raw.content | b64decode | from_yaml }}"
 
-- name: Assign IP ranges (freed first, otherwise next_free_octet)
+- name: Fail if no available ranges
+  ansible.builtin.fail:
+    msg: "Keine freien IP-Ranges verfügbar. Bitte _network/ipam.yaml erweitern."
+  when: ipam.available | length == 0
+
+- name: Assign first available block
   ansible.builtin.set_fact:
-    assigned_haproxy: >-
-      {{ ipam.freed[0].haproxy if ipam.freed | length > 0
-         else '10.10.' + ipam.next_free_octet | string + '.0/24' }}
-    assigned_cp: >-
-      {{ ipam.freed[0].cp if ipam.freed | length > 0
-         else '10.10.' + (ipam.next_free_octet + 1) | string + '.0/24' }}
-    assigned_workers: >-
-      {{ ipam.freed[0].workers if ipam.freed | length > 0
-         else '10.10.' + (ipam.next_free_octet + 2) | string + '.0/24' }}
+    assigned_haproxy: "{{ ipam.available[0].haproxy }}"
+    assigned_cp:      "{{ ipam.available[0].cp }}"
+    assigned_workers: "{{ ipam.available[0].workers }}"
 
 - name: Update IPAM
   ansible.builtin.set_fact:
     ipam_updated: >-
       {{
         ipam | combine({
+          'available': ipam.available[1:],
           'assignments': ipam.assignments | combine({
             cluster_name: {
               'haproxy': assigned_haproxy,
               'cp':      assigned_cp,
               'workers': assigned_workers
             }
-          }),
-          'freed': ipam.freed[1:] if ipam.freed | length > 0 else ipam.freed,
-          'next_free_octet': ipam.next_free_octet + 3 if ipam.freed | length == 0
-                             else ipam.next_free_octet
+          })
         })
       }}
 

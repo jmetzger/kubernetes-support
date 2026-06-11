@@ -13,7 +13,7 @@
     released_ip_block: >-
       {{ ipam.assignments[cluster_name].haproxy | regex_replace('\.0/24$', '') }}
 
-- name: Release IP ranges back to freed
+- name: Release IP ranges back to available
   ansible.builtin.set_fact:
     ipam_updated: >-
       {{
@@ -21,7 +21,7 @@
           'assignments': ipam.assignments | dict2items
                          | rejectattr('key', 'equalto', cluster_name)
                          | items2dict,
-          'freed': ipam.freed + [ ipam.assignments[cluster_name] ]
+          'available': ipam.available + [ ipam.assignments[cluster_name] ]
         })
       }}
 

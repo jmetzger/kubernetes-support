@@ -37,22 +37,15 @@
       ansible.builtin.set_fact:
         ipam: "{{ ipam_raw.content | b64decode | from_yaml }}"
 
-    # --- ip_block Choices fuer create-Survey aufbauen ---
+    # --- ip_block Choices direkt aus available-Liste aufbauen ---
 
-    - name: Build ip_block choices (freed + next 20 free blocks)
+    - name: Build ip_block choices from available list
       ansible.builtin.set_fact:
         ip_block_choices: >-
-          {% set choices = [] %}
-          {% for entry in ipam.freed %}
-            {% set _ = choices.append(entry.haproxy | regex_replace('\.0/24$', '')) %}
-          {% endfor %}
-          {% for i in range(0, 20) %}
-            {% set octet = ipam.next_free_octet + (i * 3) %}
-            {% if octet <= 252 %}
-              {% set _ = choices.append('10.10.' + octet | string + '.0') %}
-            {% endif %}
-          {% endfor %}
-          {{ choices | sort }}
+          {{ ipam.available
+             | map(attribute='haproxy')
+             | map('regex_replace', '\.0/24$', '')
+             | list }}
 
     # --- cluster_name Choices fuer scale/upgrade/destroy aufbauen ---
 

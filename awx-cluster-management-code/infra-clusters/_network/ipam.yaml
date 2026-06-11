@@ -1,12 +1,25 @@
 base_network: 10.10.0.0/16
 subnet_size: /24
 
+available:
+  - haproxy: "10.10.4.0/24"
+    cp:      "10.10.5.0/24"
+    workers: "10.10.6.0/24"
+  - haproxy: "10.10.7.0/24"
+    cp:      "10.10.8.0/24"
+    workers: "10.10.9.0/24"
+  - haproxy: "10.10.10.0/24"
+    cp:      "10.10.11.0/24"
+    workers: "10.10.12.0/24"
+  - haproxy: "10.10.13.0/24"
+    cp:      "10.10.14.0/24"
+    workers: "10.10.15.0/24"
+  - haproxy: "10.10.16.0/24"
+    cp:      "10.10.17.0/24"
+    workers: "10.10.18.0/24"
+
 assignments:
   example-cluster-01:
     haproxy: "10.10.1.0/24"
     cp:      "10.10.2.0/24"
     workers: "10.10.3.0/24"
-
-freed: []
-
-next_free_octet: 4
