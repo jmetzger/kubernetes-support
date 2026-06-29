@@ -2,6 +2,12 @@
 
 ## Inhalt
 
+### Workshop argocd autopilot 1.07.2026 
+
+* [argocd autopilot mit gepatchter Version im Cluster ausrollen](/argocd/autopilot/2026-06-29-installation-uebung-mit-project.md)
+* 
+
+
 ### K8s Cluster Deployment auf vSphere
 
 Automatisiertes Deployen von Kubernetes-Clustern auf VMware vSphere via GitLab CI/CD.
