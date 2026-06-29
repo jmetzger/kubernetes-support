@@ -1,6 +1,6 @@
 # ArgoCD Autopilot Installation mit Server-Side Apply Workaround
 
-## Achtung: So wie es hier beschrieben wird funktioniert ES NICHT !!! 
+## Achtung: So wie es hier beschrieben wird, funktioniert ES NICHT !!! 
 
   * Der einzige Weg, du musst argocd-autopilot patched, dass er server side applies macht
   * Die Anleitung zum Verwenden der gepatchten Version findest Du hier [Verwenden der gepatchten Version](argocd/autopilot/2026-06-29-installation-uebung-mit-project.md)
