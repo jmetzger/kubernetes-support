@@ -45,9 +45,23 @@ cd
 
 <img width="1337" height="522" alt="image" src="https://github.com/user-attachments/assets/e2cf8141-45d5-4011-928e-e679cfb9186d" />
 
+## Schritt 5: env-Variablen setzten und bootstrap durchführen
 
+```
+export GIT_TOKEN=<hier-dein-token>
+# z.B. gitlab.com/training.tn1/gitops-argocd-jochen.git
+export GIT_REPO=<hier-deine-repo-url>
+```
 
+```
+# Das bevölkert das Repo mit den richtigen Einstellungen um zu starten 
+cd
+./argocd-autopilot repo bootstrap
+```
 
+```
+# Du kannst dir das dann direkt im Repo anschauen
+```
 
 ## Optional : Autocompletion (bereits installiert) 
 
