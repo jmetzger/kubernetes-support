@@ -1,5 +1,9 @@
 # Installation und verwenden für Projet 
 
+## Voraussetzungen
+
+  * Cluster muss eingerichtet sein in .kube/config und muss erreichbar sein 
+
 ## Schritt 1: Installation (lokal für jeden Nutzer) 
 
   * Ihr könnte es aber auch zentral nach /usr/local/bin installieren 
@@ -18,11 +22,34 @@ mv argocd-autopilot-* argocd-autopilot
 source <(argocd-autopilot completion bash)
 
 # Versionsnummer wird bei dieser gepatchten version leider nicht angezeigt :o(
-./argocd-autopilot version 
+./argocd-autopilot version
+./argocd-autopilot help 
 ```
 
+## Schritt 2: Autcomplete verwenden 
 
-## Schritt 2: Autocompletion (bereits installiert) 
+```
+cd
+./argocd-autopilot <TAB><TAB>
+```
+
+## Schritt 3: gitops-repo anlegen 
+
+```
+# in gitlab einloggen mit teilnehmer-nr
+# z.B. training.tn1
+# Bitte keine README.md rein, muss leer sein
+```
+
+## Schritt 4: Personal Access Token (PAT) in gitlab anlegen 
+
+<img width="1337" height="522" alt="image" src="https://github.com/user-attachments/assets/e2cf8141-45d5-4011-928e-e679cfb9186d" />
+
+
+
+
+
+## Optional : Autocompletion (bereits installiert) 
 
 ```
 # autocompletion lässt sich nur mit dem originalen Binary erstellen
