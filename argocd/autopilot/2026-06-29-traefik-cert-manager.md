@@ -57,6 +57,14 @@ cd
 
 Im GitLab-Repo erscheint jetzt `projects/infra.yaml` mit AppProject + ApplicationSet.
 
+## Schritt 2.5 Achtung änderung abholen (empfohlen) 
+
+```
+cd ~/gitops
+git pull
+```
+
+
 ## Schritt 3: Traefik deployen
 
 Verzeichnisstruktur anlegen:
@@ -73,7 +81,10 @@ Die `srcRepoURL` zeigt auf dasselbe GitOps-Repo — ArgoCD liest die config.json
 aus dem Repo und sucht dann den `srcPath` im selben Repo.
 
 ```
-# vi apps/traefik/infra/config.json
+nano apps/traefik/infra/config.json
+```
+
+```
 {
   "appName": "traefik",
   "userGivenName": "traefik",
