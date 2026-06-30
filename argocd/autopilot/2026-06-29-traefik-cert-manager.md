@@ -380,6 +380,61 @@ Im ArgoCD Web Interface sind jetzt folgende Applications sichtbar:
 | cert-manager-helm | Helm Chart | Synced, Healthy |
 | infra-cluster-issuers | Zwischen-App (kustomize) | Synced, Healthy |
 
+## Schritt 6: Aufraeumen - Project infra und alle Applications loeschen
+
+Die Reihenfolge ist wichtig: erst die Apps loeschen, dann das Project.
+argocd-autopilot entfernt die Dateien aus dem Git-Repo, ArgoCD synct danach
+und loescht die Ressourcen im Cluster automatisch (per Finalizer).
+
+### Apps loeschen
+
+```
+cd
+./argocd-autopilot app delete cluster-issuers --project infra
+./argocd-autopilot app delete cert-manager --project infra
+./argocd-autopilot app delete traefik --project infra
+```
+
+Jeder Befehl entfernt das `apps/<app>/infra/config.json` aus dem Git-Repo
+und pusht den Commit. Der ApplicationSet des infra-Projects sieht die fehlende
+config.json und loescht die zugehoerige Zwischen-App (infra-*).
+Der Finalizer auf der Zwischen-App kaskadiert zum Loeschen der Helm-App
+und aller Cluster-Ressourcen.
+
+### Project loeschen
+
+```
+cd
+./argocd-autopilot project delete infra
+```
+
+Entfernt `projects/infra.yaml` aus dem Repo (AppProject + ApplicationSet).
+
+### Status pruefen
+
+```
+kubectl get applications -n argocd
+kubectl get appproject -n argocd
+kubectl get pods -n traefik
+kubectl get pods -n cert-manager
+```
+
+Erwartete Ausgabe nach dem Aufraeumen (nur noch bootstrap-apps):
+
+```
+NAME              SYNC STATUS   HEALTH STATUS
+argo-cd           Synced        Healthy
+root              Synced        Healthy
+```
+
+Namespaces `traefik` und `cert-manager` sollten nicht mehr existieren:
+
+```
+kubectl get ns traefik cert-manager
+Error from server (NotFound): namespaces "traefik" not found
+Error from server (NotFound): namespaces "cert-manager" not found
+```
+
 ## Zusammenfassung
 
 | Komponente | Helm Repo | Namespace | Extra Values |
