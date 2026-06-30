@@ -67,47 +67,76 @@ ls bootstrap/
 
 ## Schritt 2: ArgoCD Credentials fuer Helm-Repos hinterlegen
 
-ArgoCD muss die Helm-Repositories kennen, bevor wir sie in Applications referenzieren.
+ArgoCD speichert Repository-Credentials als Kubernetes Secrets mit dem Label
+`argocd.argoproj.io/secret-type=repository`.
+
+Traefik Helm-Repo:
 
 ```
-kubectl port-forward svc/argocd-server -n argocd 8080:443 &
-sleep 2
-argocd login localhost:8080 --insecure --username admin \
-  --password $(kubectl get secret argocd-initial-admin-secret -n argocd \
-    -o jsonpath="{.data.password}" | base64 -d)
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: repo-traefik
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+stringData:
+  type: helm
+  name: traefik
+  url: https://traefik.github.io/charts
+EOF
 ```
 
-Helm-Repos registrieren:
+Jetstack (cert-manager) Helm-Repo:
 
 ```
-argocd repo add https://traefik.github.io/charts \
-  --type helm --name traefik
-
-argocd repo add https://charts.jetstack.io \
-  --type helm --name jetstack
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: repo-jetstack
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+stringData:
+  type: helm
+  name: jetstack
+  url: https://charts.jetstack.io
+EOF
 ```
 
 GitLab Repo 2 registrieren (gleicher Token wie Repo 1):
 
 ```
-argocd repo add ${REPO2} \
-  --username oauth2 \
-  --password ${GIT_TOKEN}
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: repo-helm-charts-${MY_NAME}
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+stringData:
+  type: git
+  url: ${REPO2}
+  username: oauth2
+  password: ${GIT_TOKEN}
+EOF
 ```
 
 Registrierung pruefen:
 
 ```
-argocd repo list
+kubectl get secrets -n argocd -l argocd.argoproj.io/secret-type=repository -o name
 ```
 
 Erwartete Ausgabe:
 
 ```
-TYPE  NAME      REPO                                                     STATUS      MESSAGE
-helm  traefik   https://traefik.github.io/charts                        Successful
-helm  jetstack  https://charts.jetstack.io                              Successful
-git   -         https://gitlab.com/training.tn1/helm-chart-templates-jm...        Successful
+secret/repo-helm-charts-jm
+secret/repo-jetstack
+secret/repo-traefik
 ```
 
 ---
@@ -119,37 +148,38 @@ cd
 ./argocd-autopilot project create infra
 ```
 
-Das legt `gitops-bootstrap/projects/infra.yaml` an. Jetzt `sourceRepos` ergaenzen,
-damit ArgoCD die Helm-Repos und GitLab Repo 2 vertrauen darf:
+Das legt `projects/infra.yaml` an — eine Multi-Dokument-YAML mit AppProject und ApplicationSet.
+Nur den `spec.sourceRepos`-Block im **ersten** Dokument (AppProject) ergaenzen:
 
 ```
-cd ~/gitops-bootstrap
+cd ~/gitops
 ```
 
 ```
 # vi projects/infra.yaml
+# --- Erster Block: AppProject ---
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
   name: infra
   namespace: argocd
-  labels:
-    app.kubernetes.io/managed-by: argocd-autopilot
-    app.kubernetes.io/name: infra
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
+  # ... (unveraendert lassen) ...
 spec:
   sourceRepos:
-    - ${REPO2}
-    - https://traefik.github.io/charts
-    - https://charts.jetstack.io
+    - ${REPO2}                          # <- eintragen
+    - https://traefik.github.io/charts  # <- eintragen
+    - https://charts.jetstack.io        # <- eintragen
   destinations:
     - server: https://kubernetes.default.svc
       namespace: '*'
   clusterResourceWhitelist:
     - group: '*'
       kind: '*'
+# ...
+# --- Zweiter Block: ApplicationSet (nicht anfassen) ---
 ```
+
+Den zweiten Block (ApplicationSet nach dem `---`) unveraendert lassen.
 
 Commit und Push:
 
@@ -379,10 +409,13 @@ spec:
 ```
 git add .
 git commit -m "add traefik, cert-manager, cluster-issuer applications"
-git push
+git branch -m master main
+git push --set-upstream origin main
 ```
 
-ArgoCD picked das automatisch auf (root-applications zeigt auf applications/).
+Der `git branch -m master main` Schritt ist noetig, weil der lokale Default-Branch `master`
+heisst — GitLab erwartet aber `main`. ArgoCD picked das automatisch auf (root-applications
+zeigt auf applications/).
 
 ---
 
