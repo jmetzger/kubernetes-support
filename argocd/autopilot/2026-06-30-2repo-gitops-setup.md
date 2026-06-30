@@ -7,13 +7,14 @@ Statt alles in einem Repo zu verwalten, trennen wir:
 - **Repo 1** (`gitops-bootstrap`) bleibt nach dem initialen Setup unangeruehrt.
   Es enthaelt nur die Bootstrap-Infrastruktur und einen einzigen Einstiegspunkt,
   der auf Repo 2 zeigt.
-- **Repo 2** (`helm-chart-templates`) enthaelt alle Application-Definitionen
+- **Repo 2** (`helm-chart-templates-<deinname>`) enthaelt alle Application-Definitionen
   im `applications/`-Ordner sowie Helm-Values und eigene Charts.
+  Den Suffix `<deinname>` ersetzt du durch deine Initialen, z.B. `helm-chart-templates-jm`.
 
 Wenn du eine neue App deployen willst, arbeitest du nur noch in Repo 2.
 
 ```
-Repo 1 (gitops-bootstrap)               Repo 2 (helm-chart-templates)
+Repo 1 (gitops-bootstrap)               Repo 2 (helm-chart-templates-<deinname>)
 ├── bootstrap/           (autopilot)     ├── applications/
 ├── projects/                            │   ├── traefik-app.yaml
 │   └── infra.yaml       (AppProject)   │   ├── cert-manager-app.yaml
@@ -41,9 +42,12 @@ Repo 1 (gitops-bootstrap)               Repo 2 (helm-chart-templates)
 cd
 export GIT_TOKEN=<dein-token>
 export GIT_REPO=https://gitlab.com/training.tn1/<dein-gitops-repo>.git
+# Deine Initialen als Suffix fuer Repo 2, z.B. jm
+export MY_NAME=<deine-initialen>
+export REPO2=https://gitlab.com/training.tn1/helm-chart-templates-${MY_NAME}.git
 ```
 
-Repo klonen:
+Repo 1 klonen:
 
 ```
 git clone https://oauth2:${GIT_TOKEN}@$(echo $GIT_REPO | sed 's|https://||') gitops-bootstrap
@@ -86,7 +90,7 @@ argocd repo add https://charts.jetstack.io \
 GitLab Repo 2 registrieren (gleicher Token wie Repo 1):
 
 ```
-argocd repo add https://gitlab.com/training.tn1/helm-chart-templates.git \
+argocd repo add ${REPO2} \
   --username oauth2 \
   --password ${GIT_TOKEN}
 ```
@@ -103,7 +107,7 @@ Erwartete Ausgabe:
 TYPE  NAME      REPO                                                     STATUS      MESSAGE
 helm  traefik   https://traefik.github.io/charts                        Successful
 helm  jetstack  https://charts.jetstack.io                              Successful
-git   -         https://gitlab.com/training.tn1/helm-chart-templates... Successful
+git   -         https://gitlab.com/training.tn1/helm-chart-templates-jm...        Successful
 ```
 
 ---
@@ -136,7 +140,7 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   sourceRepos:
-    - https://gitlab.com/training.tn1/helm-chart-templates.git
+    - ${REPO2}
     - https://traefik.github.io/charts
     - https://charts.jetstack.io
   destinations:
@@ -165,7 +169,7 @@ sie zeigt auf den `applications/`-Ordner in Repo 2:
 ```
 cd
 ./argocd-autopilot app create root-applications \
-  --app https://gitlab.com/training.tn1/helm-chart-templates.git/applications \
+  --app $(echo $REPO2 | sed 's|\.git$||')/applications \
   --project infra \
   --type dir
 ```
@@ -197,15 +201,15 @@ infra-root-applications  Unknown    Healthy
 
 ## Schritt 5: Repo 2 aufsetzen
 
-GitLab Repo 2 anlegen: `https://gitlab.com/training.tn1/helm-chart-templates`
+GitLab Repo 2 anlegen: `https://gitlab.com/training.tn1/helm-chart-templates-${MY_NAME}`
 (leer, ohne README.md)
 
 Dann klonen:
 
 ```
 cd
-git clone https://oauth2:${GIT_TOKEN}@gitlab.com/training.tn1/helm-chart-templates.git
-cd helm-chart-templates
+git clone https://oauth2:${GIT_TOKEN}@$(echo $REPO2 | sed 's|https://||') helm-chart-templates-${MY_NAME}
+cd helm-chart-templates-${MY_NAME}
 ```
 
 Verzeichnisstruktur anlegen:
@@ -240,7 +244,7 @@ spec:
       helm:
         valueFiles:
           - $values/helm-values/traefik-values.yaml
-    - repoURL: https://gitlab.com/training.tn1/helm-chart-templates.git
+    - repoURL: ${REPO2}
       targetRevision: main
       ref: values
   destination:
@@ -284,7 +288,7 @@ spec:
       helm:
         valueFiles:
           - $values/helm-values/cert-manager-values.yaml
-    - repoURL: https://gitlab.com/training.tn1/helm-chart-templates.git
+    - repoURL: ${REPO2}
       targetRevision: main
       ref: values
   destination:
@@ -356,7 +360,7 @@ metadata:
 spec:
   project: infra
   source:
-    repoURL: https://gitlab.com/training.tn1/helm-chart-templates.git
+    repoURL: ${REPO2}
     targetRevision: main
     path: custom-charts/cluster-issuer
   destination:
