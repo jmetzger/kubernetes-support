@@ -69,6 +69,9 @@ mkdir -p apps/traefik/base
 
 ### config.json anlegen
 
+Die `srcRepoURL` zeigt auf dasselbe GitOps-Repo — ArgoCD liest die config.json
+aus dem Repo und sucht dann den `srcPath` im selben Repo.
+
 ```
 # vi apps/traefik/infra/config.json
 {
@@ -77,9 +80,14 @@ mkdir -p apps/traefik/base
   "destNamespace": "argocd",
   "destServer": "https://kubernetes.default.svc",
   "srcPath": "apps/traefik/base",
-  "srcRepoURL": "<deine-repo-url>.git",
+  "srcRepoURL": "$GIT_REPO",
   "srcTargetRevision": "HEAD"
 }
+```
+
+```
+# GIT_REPO-Variable eintragen
+sed -i "s|\$GIT_REPO|${GIT_REPO}|g" apps/traefik/infra/config.json
 ```
 
 ### kustomization.yml anlegen
@@ -176,9 +184,13 @@ mkdir -p apps/cert-manager/base
   "destNamespace": "argocd",
   "destServer": "https://kubernetes.default.svc",
   "srcPath": "apps/cert-manager/base",
-  "srcRepoURL": "<deine-repo-url>.git",
+  "srcRepoURL": "$GIT_REPO",
   "srcTargetRevision": "HEAD"
 }
+```
+
+```
+sed -i "s|\$GIT_REPO|${GIT_REPO}|g" apps/cert-manager/infra/config.json
 ```
 
 ### kustomization.yml anlegen
@@ -275,9 +287,13 @@ mkdir -p apps/cluster-issuers/base/manifests
   "destNamespace": "cert-manager",
   "destServer": "https://kubernetes.default.svc",
   "srcPath": "apps/cluster-issuers/base",
-  "srcRepoURL": "<deine-repo-url>.git",
+  "srcRepoURL": "$GIT_REPO",
   "srcTargetRevision": "HEAD"
 }
+```
+
+```
+sed -i "s|\$GIT_REPO|${GIT_REPO}|g" apps/cluster-issuers/infra/config.json
 ```
 
 ### kustomization.yml anlegen
