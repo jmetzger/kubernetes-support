@@ -210,7 +210,10 @@ sed -i "s|\$GIT_REPO|${GIT_REPO}|g" apps/cert-manager/infra/config.json
 ### kustomization.yml anlegen
 
 ```
-# vi apps/cert-manager/base/kustomization.yml
+nano apps/cert-manager/base/kustomization.yml
+```
+
+```
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
