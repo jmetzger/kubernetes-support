@@ -5,7 +5,6 @@
 ### Workshop argocd autopilot 1.07.2026 
 
 * [argocd autopilot mit gepatchter Version im Cluster ausrollen](/argocd/autopilot/2026-06-29-installation-uebung-mit-project.md)
-* [Traefik und cert-manager via Helm deployen (Project infra, ClusterIssuer)](/argocd/autopilot/2026-06-29-traefik-cert-manager.md)
 * [GitOps 2-Repo-Setup: bootstrap-Repo + helm-chart-templates (Traefik, cert-manager, ClusterIssuer)](/argocd/autopilot/2026-06-30-2repo-gitops-setup.md)
 
 
