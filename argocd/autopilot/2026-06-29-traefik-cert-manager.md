@@ -188,7 +188,10 @@ mkdir -p apps/cert-manager/base
 ### config.json anlegen
 
 ```
-# vi apps/cert-manager/infra/config.json
+nano apps/cert-manager/infra/config.json
+```
+
+```
 {
   "appName": "cert-manager",
   "userGivenName": "cert-manager",
