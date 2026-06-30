@@ -4,35 +4,38 @@
 
 Statt alles in einem Repo zu verwalten, trennen wir:
 
-- **Repo 1** (`gitops-bootstrap`) bleibt nach dem initialen Setup unangeruehrt.
+- **Repo 1** (`argo-gitops-<deinname>`) bleibt nach dem initialen Bootstrap unangeruehrt.
   Es enthaelt nur die Bootstrap-Infrastruktur und einen einzigen Einstiegspunkt,
   der auf Repo 2 zeigt.
 - **Repo 2** (`helm-chart-templates-<deinname>`) enthaelt alle Application-Definitionen
   im `applications/`-Ordner sowie Helm-Values und eigene Charts.
-  Den Suffix `<deinname>` ersetzt du durch deine Initialen, z.B. `helm-chart-templates-jm`.
+  Den Suffix `<deinname>` ersetzt du durch deine Initialen, z.B. `jm`.
 
 Wenn du eine neue App deployen willst, arbeitest du nur noch in Repo 2.
 
 ```
-Repo 1 (gitops-bootstrap)               Repo 2 (helm-chart-templates-<deinname>)
-├── bootstrap/           (autopilot)     ├── applications/
-├── projects/                            │   ├── traefik-app.yaml
-│   └── infra.yaml       (AppProject)   │   ├── cert-manager-app.yaml
-└── apps/                               │   └── cluster-issuer-app.yaml
-    └── root-applications/              ├── helm-values/
-        └── overlays/                   │   ├── traefik-values.yaml
-            └── infra/  (zeigt auf →)  │   └── cert-manager-values.yaml
-                                        └── custom-charts/
-                                            └── cluster-issuer/
+Repo 1 (argo-gitops-<deinname>)                 Repo 2 (helm-chart-templates-<deinname>)
+├── bootstrap/            (autopilot, static)    ├── applications/
+├── projects/                                    │   ├── traefik-app.yaml
+│   └── infra.yaml        (AppProject)           │   ├── cert-manager-app.yaml
+└── apps/                                        │   └── cluster-issuer-app.yaml
+    └── root-applications/                       ├── helm-values/
+        └── overlays/                            │   ├── traefik-values.yaml
+            └── infra/    (zeigt auf Repo 2)     │   └── cert-manager-values.yaml
+                                                 └── custom-charts/
+                                                     └── cluster-issuer/
 ```
+
+**Credentials:** argocd-autopilot legt beim Bootstrap automatisch eine Credential-Template
+fuer `https://gitlab.com/` an. Repo 2 benoetigt daher keine separate Registrierung.
 
 ---
 
 ## Voraussetzungen
 
 - ArgoCD laeuft im Cluster (bootstrap bereits durchgefuehrt)
-- `argocd-autopilot` Binary vorhanden
-- GitLab-Repo 1 und ein Personal Access Token (PAT)
+- `argocd-autopilot` Binary vorhanden unter `~/argocd-autopilot`
+- GitLab Repo 1 mit PAT vorhanden
 
 ---
 
@@ -42,102 +45,31 @@ Repo 1 (gitops-bootstrap)               Repo 2 (helm-chart-templates-<deinname>)
 cd
 export GIT_TOKEN=<dein-token>
 export GIT_REPO=https://gitlab.com/training.tn1/<dein-gitops-repo>.git
-# Deine Initialen als Suffix fuer Repo 2, z.B. jm
 export MY_NAME=<deine-initialen>
 export REPO2=https://gitlab.com/training.tn1/helm-chart-templates-${MY_NAME}.git
 ```
 
-Repo 1 klonen:
+Repo 1 klonen und Struktur anschauen:
 
 ```
-git clone https://oauth2:${GIT_TOKEN}@$(echo $GIT_REPO | sed 's|https://||') gitops-bootstrap
-cd gitops-bootstrap
-```
-
-Aktuelle Struktur anschauen (vom Bootstrap):
-
-```
+cd
+git clone https://oauth2:${GIT_TOKEN}@$(echo $GIT_REPO | sed 's|https://||') gitops
+cd ~/gitops
 ls
 ls apps/
 ls projects/
-ls bootstrap/
 ```
 
 ---
 
-## Schritt 2: ArgoCD Credentials fuer Helm-Repos hinterlegen
+## Schritt 2: Repo 2 in GitLab anlegen
 
-ArgoCD speichert Repository-Credentials als Kubernetes Secrets mit dem Label
-`argocd.argoproj.io/secret-type=repository`.
+Im GitLab-Browser:
+`https://gitlab.com/training.tn1` → **New project** → **Create blank project**
 
-Traefik Helm-Repo:
-
-```
-kubectl apply -f - <<EOF
-apiVersion: v1
-kind: Secret
-metadata:
-  name: repo-traefik
-  namespace: argocd
-  labels:
-    argocd.argoproj.io/secret-type: repository
-stringData:
-  type: helm
-  name: traefik
-  url: https://traefik.github.io/charts
-EOF
-```
-
-Jetstack (cert-manager) Helm-Repo:
-
-```
-kubectl apply -f - <<EOF
-apiVersion: v1
-kind: Secret
-metadata:
-  name: repo-jetstack
-  namespace: argocd
-  labels:
-    argocd.argoproj.io/secret-type: repository
-stringData:
-  type: helm
-  name: jetstack
-  url: https://charts.jetstack.io
-EOF
-```
-
-GitLab Repo 2 registrieren (gleicher Token wie Repo 1):
-
-```
-kubectl apply -f - <<EOF
-apiVersion: v1
-kind: Secret
-metadata:
-  name: repo-helm-charts-${MY_NAME}
-  namespace: argocd
-  labels:
-    argocd.argoproj.io/secret-type: repository
-stringData:
-  type: git
-  url: ${REPO2}
-  username: oauth2
-  password: ${GIT_TOKEN}
-EOF
-```
-
-Registrierung pruefen:
-
-```
-kubectl get secrets -n argocd -l argocd.argoproj.io/secret-type=repository -o name
-```
-
-Erwartete Ausgabe:
-
-```
-secret/repo-helm-charts-jm
-secret/repo-jetstack
-secret/repo-traefik
-```
+- Name: `helm-chart-templates-${MY_NAME}` (z.B. `helm-chart-templates-jm`)
+- Visibility: Private
+- **kein** README / .gitignore
 
 ---
 
@@ -148,44 +80,39 @@ cd
 ./argocd-autopilot project create infra
 ```
 
-Das legt `projects/infra.yaml` an — eine Multi-Dokument-YAML mit AppProject und ApplicationSet.
-Nur den `spec.sourceRepos`-Block im **ersten** Dokument (AppProject) ergaenzen:
+Das legt `~/gitops/projects/infra.yaml` an — eine Multi-Dokument-YAML mit AppProject und
+ApplicationSet. Autopilot setzt `sourceRepos: ['*']` — wir tragen die drei konkreten Repos ein:
 
 ```
 cd ~/gitops
 ```
 
 ```
-# vi projects/infra.yaml
-# --- Erster Block: AppProject ---
-apiVersion: argoproj.io/v1alpha1
-kind: AppProject
-metadata:
-  name: infra
-  namespace: argocd
-  # ... (unveraendert lassen) ...
-spec:
-  sourceRepos:
-    - ${REPO2}                          # <- eintragen
-    - https://traefik.github.io/charts  # <- eintragen
-    - https://charts.jetstack.io        # <- eintragen
-  destinations:
-    - server: https://kubernetes.default.svc
-      namespace: '*'
-  clusterResourceWhitelist:
-    - group: '*'
-      kind: '*'
-# ...
-# --- Zweiter Block: ApplicationSet (nicht anfassen) ---
+REPO2=${REPO2} python3 << 'EOF'
+import yaml, os
+
+path = os.path.expanduser('~/gitops/projects/infra.yaml')
+repo2 = os.environ['REPO2']
+
+with open(path) as f:
+    docs = list(yaml.safe_load_all(f))
+
+docs[0]['spec']['sourceRepos'] = [
+    repo2,
+    'https://traefik.github.io/charts',
+    'https://charts.jetstack.io',
+]
+
+with open(path, 'w') as f:
+    yaml.dump_all(docs, f, default_flow_style=False)
+
+print("sourceRepos gesetzt:", docs[0]['spec']['sourceRepos'])
+EOF
 ```
-
-Den zweiten Block (ApplicationSet nach dem `---`) unveraendert lassen.
-
-Commit und Push:
 
 ```
 git add projects/infra.yaml
-git commit -m "add infra project with sourceRepos"
+git commit -m "update infra project sourceRepos"
 git push
 ```
 
@@ -193,8 +120,7 @@ git push
 
 ## Schritt 4: Root-Application anlegen (zeigt auf Repo 2)
 
-Dieser Befehl erstellt die einzige Application in Repo 1 —
-sie zeigt auf den `applications/`-Ordner in Repo 2:
+Dieser Befehl erstellt in Repo 1 den Einstiegspunkt auf `applications/` in Repo 2:
 
 ```
 cd
@@ -204,60 +130,33 @@ cd
   --type dir
 ```
 
-Das erzeugt in Repo 1:
-
-```
-apps/root-applications/overlays/infra/   <- ApplicationSet liest das
-```
-
 Danach wird Repo 1 nicht mehr bearbeitet.
-
-Status pruefen:
 
 ```
 kubectl get applications -n argocd
 ```
 
-Erwartete Ausgabe (root-applications ist noch Healthy/Unknown, weil Repo 2 leer ist):
-
-```
-NAME                  SYNC STATUS   HEALTH STATUS
-argo-cd               Synced        Healthy
-root                  Synced        Healthy
-infra-root-applications  Unknown    Healthy
-```
-
 ---
 
-## Schritt 5: Repo 2 aufsetzen
-
-GitLab Repo 2 anlegen: `https://gitlab.com/training.tn1/helm-chart-templates-${MY_NAME}`
-(leer, ohne README.md)
-
-Dann klonen:
+## Schritt 5: Repo 2 klonen und Struktur anlegen
 
 ```
 cd
 git clone https://oauth2:${GIT_TOKEN}@$(echo $REPO2 | sed 's|https://||') helm-chart-templates-${MY_NAME}
-cd helm-chart-templates-${MY_NAME}
-```
-
-Verzeichnisstruktur anlegen:
-
-```
-mkdir -p applications
-mkdir -p helm-values
-mkdir -p custom-charts/cluster-issuer/templates
+cd ~/helm-chart-templates-${MY_NAME}
+mkdir -p applications helm-values custom-charts/cluster-issuer/templates
 ```
 
 ---
 
 ## Schritt 6: Traefik Application anlegen
 
-Multi-Source: Helm-Chart von ArtifactHub + Values-File aus Repo 2.
+```
+cd ~/helm-chart-templates-${MY_NAME}
+```
 
 ```
-# vi applications/traefik-app.yaml
+cat > applications/traefik-app.yaml << EOF
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -273,7 +172,7 @@ spec:
       targetRevision: "41.0.0"
       helm:
         valueFiles:
-          - $values/helm-values/traefik-values.yaml
+          - \$values/helm-values/traefik-values.yaml
     - repoURL: ${REPO2}
       targetRevision: main
       ref: values
@@ -286,12 +185,14 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+EOF
 ```
 
 ```
-# vi helm-values/traefik-values.yaml
+cat > helm-values/traefik-values.yaml << 'EOF'
 deployment:
   replicas: 1
+EOF
 ```
 
 ---
@@ -299,7 +200,11 @@ deployment:
 ## Schritt 7: cert-manager Application anlegen
 
 ```
-# vi applications/cert-manager-app.yaml
+cd ~/helm-chart-templates-${MY_NAME}
+```
+
+```
+cat > applications/cert-manager-app.yaml << EOF
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -317,7 +222,7 @@ spec:
       targetRevision: "v1.20.3"
       helm:
         valueFiles:
-          - $values/helm-values/cert-manager-values.yaml
+          - \$values/helm-values/cert-manager-values.yaml
     - repoURL: ${REPO2}
       targetRevision: main
       ref: values
@@ -330,34 +235,39 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+EOF
 ```
 
 ```
-# vi helm-values/cert-manager-values.yaml
+cat > helm-values/cert-manager-values.yaml << 'EOF'
 crds:
   enabled: true
+EOF
 ```
 
 ---
 
 ## Schritt 8: ClusterIssuer Application anlegen
 
-Das ist ein eigenes lokales Chart in Repo 2 — kein Helm-Repo noetig.
+```
+cd ~/helm-chart-templates-${MY_NAME}
+```
 
-### Chart.yaml
+Chart-Definition:
 
 ```
-# vi custom-charts/cluster-issuer/Chart.yaml
+cat > custom-charts/cluster-issuer/Chart.yaml << 'EOF'
 apiVersion: v2
 name: cluster-issuer
-description: Lokales Chart fuer den ClusterIssuer (Let's Encrypt)
+description: Lokales Chart fuer den ClusterIssuer
 version: 0.1.0
+EOF
 ```
 
-### Template
+Template:
 
 ```
-# vi custom-charts/cluster-issuer/templates/cluster-issuer.yaml
+cat > custom-charts/cluster-issuer/templates/cluster-issuer.yaml << 'EOF'
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
@@ -372,12 +282,13 @@ spec:
       - http01:
           ingress:
             class: traefik
+EOF
 ```
 
-### Application
+Application:
 
 ```
-# vi applications/cluster-issuer-app.yaml
+cat > applications/cluster-issuer-app.yaml << EOF
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -400,22 +311,22 @@ spec:
     automated:
       prune: true
       selfHeal: true
+EOF
 ```
 
 ---
 
-## Schritt 9: Alles in Repo 2 pushen
+## Schritt 9: Repo 2 pushen
 
 ```
+cd ~/helm-chart-templates-${MY_NAME}
 git add .
 git commit -m "add traefik, cert-manager, cluster-issuer applications"
 git branch -m master main
 git push --set-upstream origin main
 ```
 
-Der `git branch -m master main` Schritt ist noetig, weil der lokale Default-Branch `master`
-heisst — GitLab erwartet aber `main`. ArgoCD picked das automatisch auf (root-applications
-zeigt auf applications/).
+ArgoCD synct automatisch (root-applications zeigt auf `applications/`).
 
 ---
 
@@ -428,14 +339,15 @@ kubectl get applications -n argocd
 Erwartete Ausgabe:
 
 ```
-NAME                     SYNC STATUS   HEALTH STATUS
-argo-cd                  Synced        Healthy
-autopilot-bootstrap      Synced        Healthy
-root                     Synced        Healthy
-infra-root-applications  Synced        Healthy
-traefik                  Synced        Healthy
-cert-manager             Synced        Healthy
-cluster-issuer           Synced        Healthy
+NAME                           SYNC STATUS   HEALTH STATUS
+argo-cd                        Synced        Healthy
+autopilot-bootstrap            Synced        Healthy
+cert-manager                   Synced        Healthy
+cluster-issuer                 Synced        Healthy
+cluster-resources-in-cluster   Synced        Healthy
+infra-root-applications        Synced        Healthy
+root                           Synced        Healthy
+traefik                        Synced        Healthy
 ```
 
 ```
@@ -447,8 +359,8 @@ kubectl get clusterissuer letsencrypt-prod
 Erwartete Ausgabe:
 
 ```
-NAME                   READY   AGE
-letsencrypt-prod       True    1m
+NAME               READY   AGE
+letsencrypt-prod   True    1m
 ```
 
 ---
@@ -465,9 +377,10 @@ letsencrypt-prod       True    1m
 
 ## Aufraeumen
 
-### Applications loeschen (in Repo 2)
+### Applications in Repo 2 loeschen
 
 ```
+cd ~/helm-chart-templates-${MY_NAME}
 rm applications/cluster-issuer-app.yaml
 rm applications/cert-manager-app.yaml
 rm applications/traefik-app.yaml
@@ -476,12 +389,12 @@ git commit -m "remove all applications"
 git push
 ```
 
-ArgoCD synct automatisch und loescht Traefik, cert-manager und den ClusterIssuer im Cluster.
+ArgoCD synct automatisch und loescht Traefik, cert-manager und ClusterIssuer.
 
 ### Project loeschen (in Repo 1)
 
 ```
-cd ~/gitops-bootstrap
+cd
 ./argocd-autopilot app delete root-applications --project infra
 ./argocd-autopilot project delete infra
 ```
@@ -498,6 +411,7 @@ Erwartete Ausgabe:
 ```
 NAME                  SYNC STATUS   HEALTH STATUS
 argo-cd               Synced        Healthy
+autopilot-bootstrap   Synced        Healthy
 root                  Synced        Healthy
 
 Error from server (NotFound): namespaces "traefik" not found
@@ -506,10 +420,29 @@ Error from server (NotFound): namespaces "cert-manager" not found
 
 ---
 
-## Zusammenfassung
+## Repo-Struktur nach der Uebung
 
-| Komponente | Typ | Helm-Repo / Chart-Pfad |
-|------------|-----|------------------------|
-| Traefik | Helm (ArtifactHub) | `https://traefik.github.io/charts` |
-| cert-manager | Helm (ArtifactHub) | `https://charts.jetstack.io` |
-| ClusterIssuer | Lokales Chart | `custom-charts/cluster-issuer/` |
+```
+Repo 1 (argo-gitops-<deinname>)
+├── bootstrap/
+├── projects/
+│   └── infra.yaml
+└── apps/
+    └── root-applications/
+        └── overlays/
+            └── infra/
+
+Repo 2 (helm-chart-templates-<deinname>)
+├── applications/
+│   ├── traefik-app.yaml
+│   ├── cert-manager-app.yaml
+│   └── cluster-issuer-app.yaml
+├── helm-values/
+│   ├── traefik-values.yaml
+│   └── cert-manager-values.yaml
+└── custom-charts/
+    └── cluster-issuer/
+        ├── Chart.yaml
+        └── templates/
+            └── cluster-issuer.yaml
+```
