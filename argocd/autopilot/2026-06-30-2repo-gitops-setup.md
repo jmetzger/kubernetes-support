@@ -75,45 +75,12 @@ Im GitLab-Browser:
 
 ## Schritt 3: AppProject 'infra' anlegen
 
+`argocd-autopilot` setzt `sourceRepos: ['*']` als Default — alle Helm-Repos und
+GitLab-Repos sind erlaubt. Fuer den Workshop reicht das.
+
 ```
 cd
 ./argocd-autopilot project create infra
-```
-
-Das legt `~/gitops/projects/infra.yaml` an — eine Multi-Dokument-YAML mit AppProject und
-ApplicationSet. Autopilot setzt `sourceRepos: ['*']` — wir tragen die drei konkreten Repos ein:
-
-```
-cd ~/gitops
-```
-
-```
-REPO2=${REPO2} python3 << 'EOF'
-import yaml, os
-
-path = os.path.expanduser('~/gitops/projects/infra.yaml')
-repo2 = os.environ['REPO2']
-
-with open(path) as f:
-    docs = list(yaml.safe_load_all(f))
-
-docs[0]['spec']['sourceRepos'] = [
-    repo2,
-    'https://traefik.github.io/charts',
-    'https://charts.jetstack.io',
-]
-
-with open(path, 'w') as f:
-    yaml.dump_all(docs, f, default_flow_style=False)
-
-print("sourceRepos gesetzt:", docs[0]['spec']['sourceRepos'])
-EOF
-```
-
-```
-git add projects/infra.yaml
-git commit -m "update infra project sourceRepos"
-git push
 ```
 
 ---
