@@ -30,8 +30,11 @@ export GIT_REPO=https://gitlab.com/training.tn1/<dein-gitops-repo>.git
 ## Schritt 1: gitops-Repo vorbereiten
 
 ```
+cd
+git clone $GIT_REPO gitops
+# username
+# und token eingeben 
 cd ~/gitops
-git pull
 ls bootstrap/argo-cd/
 ```
 
