@@ -43,8 +43,6 @@ fuer `https://gitlab.com/` an. Repo 2 benoetigt daher keine separate Registrieru
 
 ```
 cd
-export GIT_TOKEN=<dein-token>
-export GIT_REPO=https://gitlab.com/training.tn1/<dein-gitops-repo>.git
 export MY_NAME=<deine-initialen>
 export REPO2=https://gitlab.com/training.tn1/helm-chart-templates-${MY_NAME}.git
 ```
