@@ -147,7 +147,7 @@ Ihr seht die ArgoCD-Uebersicht mit allen euren Applications.
 
 ---
 
-## Aufraeumen
+## Aufraeumen (Optional)
 
 Den Service wieder auf `ClusterIP` zuruecksetzen — einfach den Patch entfernen:
 
