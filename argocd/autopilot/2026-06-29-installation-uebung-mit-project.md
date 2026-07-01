@@ -18,9 +18,6 @@ cd
 curl -L --output - https://github.com/blaumann-intern/argocd-autopilot/releases/download/v0.4.20/argocd-autopilot-linux-amd64.tar.gz | tar zx
 mv argocd-autopilot-* argocd-autopilot
 
-# einmalig in der session
-source <(argocd-autopilot completion bash)
-
 # Versionsnummer wird bei dieser gepatchten version leider nicht angezeigt :o(
 ./argocd-autopilot version
 ./argocd-autopilot help 
