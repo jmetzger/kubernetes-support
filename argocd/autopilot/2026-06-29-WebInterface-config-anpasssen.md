@@ -47,6 +47,7 @@ kustomization.yaml
 
 ```
 cd ~/gitops/bootstrap/argo-cd
+cat kustomization.yaml 
 ```
 
 ```
