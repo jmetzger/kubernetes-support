@@ -59,6 +59,11 @@ cd
 ```
 
 ```
+kubectl -n argocd get pods
+kubectl -n argocd get applications 
+```
+
+```
 # Du kannst dir das dann direkt im Repo anschauen
 ```
 
