@@ -79,6 +79,11 @@ EOF
 ## Schritt 3: Aenderung pushen
 
 ```
+git config --global user.name "Jochen im Blaumann"
+git config --global user.email "jochen@blaumann.de"
+```
+
+```
 cd ~/gitops
 git add bootstrap/argo-cd/kustomization.yaml
 git commit -m "patch argocd-server service to LoadBalancer"
