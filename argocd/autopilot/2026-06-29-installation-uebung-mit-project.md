@@ -63,6 +63,100 @@ cd
 # Du kannst dir das dann direkt im Repo anschauen
 ```
 
+## Schritt 6: ServerSideApply aktivieren
+
+ArgoCD verwaltet sich nach dem Bootstrap selbst über die Application `argo-cd`. Ohne
+Server-Side Apply (SSA) syncet ArgoCD per Client-Side Apply (CSA) — das fuehrt bei
+spaeteren Kustomize-Patches (z.B. der WebInterface-LoadBalancer-Uebung) zu
+Synchronisierungsproblemen, weil ArgoCD dann mit anderen Feld-Ownern (z.B. dem
+DigitalOcean Cloud-Controller-Manager) um dieselben Felder "kaempft".
+
+Wir setzen SSA **global als Default** ueber die `argocd-cm`-ConfigMap statt nur fuer die
+`argo-cd`-Application. Vorteil: gilt automatisch fuer alle spaeteren Applications
+(`hello`, `mariadb`, `cert-manager`, `traefik`, ...), ohne dass man es bei jeder Uebung
+einzeln nachtragen muss.
+
+```
+cd ~/gitops/bootstrap/argo-cd
+```
+
+In `kustomization.yaml` einen Patch fuer `argocd-cm` ergaenzen:
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: argocd
+resources:
+- github.com/argoproj-labs/argocd-autopilot/manifests/base?ref=v0.4.20
+patches:
+- patch: |-
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: argocd-cm
+    data:
+      application.sync.options: ServerSideApply=true
+  target:
+    kind: ConfigMap
+    name: argocd-cm
+```
+
+```
+cd ~/gitops
+git add bootstrap/argo-cd/kustomization.yaml
+git commit -m "enable ServerSideApply as global default via argocd-cm"
+git push
+```
+
+Sync anstossen und pruefen, dass der Default angekommen ist:
+
+```
+kubectl -n argocd patch application argo-cd --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
+kubectl get cm argocd-cm -n argocd -o jsonpath='{.data.application\.sync\.options}'
+```
+
+Erwartete Ausgabe: `ServerSideApply=true`.
+
+### Wichtig: Der Default wirkt nicht rueckwirkend
+
+Der neue Default gilt nur fuer den **naechsten echten Sync mit Diff** jeder Application.
+`argocd-server` ist zu diesem Zeitpunkt aber schon per Client-Side Apply gebootstrapped
+(CSA-Altlast) und aktuell "Synced" (kein Diff) — ein reiner Refresh loest also **keinen**
+Re-Apply aus, SSA greift dort noch nicht automatisch.
+
+Deshalb muss man den `argocd-server`-Service einmalig **gezielt** neu syncen, damit er auf
+SSA-Ownership umgestellt wird. Das funktioniert IP-schonend (der Service wird dabei nicht
+neu angelegt, nur neu appliziert — wichtig, falls schon eine LoadBalancer-IP vergeben ist).
+
+**Per CLI:**
+
+```bash
+kubectl -n argocd patch application argo-cd --type merge -p '{
+  "operation": {
+    "sync": {
+      "resources": [{"group":"","kind":"Service","name":"argocd-server","namespace":"argocd"}],
+      "syncStrategy": {"apply": {"force": true}}
+    }
+  }
+}'
+```
+
+**Per GUI:**
+
+1. ArgoCD Web Interface oeffnen, Application `argo-cd` anklicken
+2. Im Resource-Tree die Ressource `argocd-server` (Service) auswaehlen
+3. Rechtsklick bzw. Button **Sync** — im Dialog ist die Ressource bereits vorausgewaehlt
+4. Option **FORCE** aktivieren, dann synchronisieren
+
+**Verifizieren:**
+
+```
+kubectl get svc argocd-server -n argocd -o jsonpath='{range .metadata.managedFields[*]}{.manager}{" | "}{.operation}{"\n"}{end}'
+```
+
+Erwartete Ausgabe: `argocd-controller | Apply` taucht auf (statt nur `Update`), External-IP
+und Alter (`AGE`) der Ressource bleiben dabei unveraendert.
+
 ## Optional : Autocompletion (bereits installiert) 
 
 ```
