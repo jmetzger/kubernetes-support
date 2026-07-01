@@ -210,6 +210,17 @@ Chart-Quelle: https://artifacthub.io/packages/helm/cloudpirates-mariadb/mariadb
 > `volumeMode` in den `volumeClaimTemplates` des StatefulSets. Diese Felder sind
 > im StatefulSet unveraenderbar (immutable). Damit ArgoCD diese Drift nicht versucht
 > zu patchen, brauchen wir `ignoreDifferences` + `RespectIgnoreDifferences=true`.
+>
+> Warum beides? Einfach erklaert:
+> - `ignoreDifferences` sagt ArgoCD nur: "Zeig mir dieses Feld nicht als OutOfSync an."
+>   Es betrifft nur die Anzeige/den Status.
+> - `RespectIgnoreDifferences=true` sagt ArgoCD zusaetzlich: "Wenn du wirklich syncst,
+>   lass das Feld so, wie es live im Cluster steht, statt es aus Git zu ueberschreiben."
+>   Ohne diese Option wuerde der Sync versuchen, das Feld auf den (leeren) Git-Stand
+>   zu setzen - und das schlaegt fehl, weil das Feld immutable ist.
+>
+> Kurz: `ignoreDifferences` blendet die Drift nur aus, `RespectIgnoreDifferences=true`
+> verhindert, dass der Sync deswegen kaputt geht.
 
 ```
 cd ~/app-${TEAM_NAME}-${MY_NAME}
