@@ -58,44 +58,12 @@ Im GitLab-Browser:
 
 ## Schritt 3: ArgoCD Project fuer die Fachabteilung anlegen
 
+`argocd-autopilot` setzt `sourceRepos: ['*']` als Default — alle Repos und
+OCI-Registries sind erlaubt. Fuer den Workshop reicht das.
+
 ```
 cd
 ./argocd-autopilot project create ${TEAM_NAME}
-```
-
-```
-cd ~/gitops && git pull
-```
-
-sourceRepos setzen — Repo 3 und die OCI-Registry fuer cloudpirates/mariadb:
-
-```
-REPO3=${REPO3} TEAM_NAME=${TEAM_NAME} python3 << 'EOF'
-import yaml, os
-
-team = os.environ['TEAM_NAME']
-repo3 = os.environ['REPO3']
-path = os.path.expanduser(f'~/gitops/projects/{team}.yaml')
-
-with open(path) as f:
-    docs = list(yaml.safe_load_all(f))
-
-docs[0]['spec']['sourceRepos'] = [
-    repo3,
-    'oci://registry-1.docker.io/cloudpirates/mariadb',
-]
-
-with open(path, 'w') as f:
-    yaml.dump_all(docs, f, default_flow_style=False)
-
-print(f"{team}.yaml sourceRepos gesetzt:", docs[0]['spec']['sourceRepos'])
-EOF
-```
-
-```
-git add projects/${TEAM_NAME}.yaml
-git commit -m "add ${TEAM_NAME} project"
-git push
 ```
 
 ---
