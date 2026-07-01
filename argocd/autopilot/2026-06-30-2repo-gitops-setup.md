@@ -86,7 +86,7 @@ GitLab-Repos sind erlaubt. Fuer den Workshop reicht das.
 
 ```
 cd
-./argocd-autopilot project create infra
+argocd-autopilot project create infra
 ```
 
 ---
@@ -97,7 +97,7 @@ Dieser Befehl erstellt in Repo 1 den Einstiegspunkt auf `applications/` in Repo 
 
 ```
 cd
-./argocd-autopilot app create root-applications \
+argocd-autopilot app create root-applications \
   --app $(echo $REPO2 | sed 's|\.git$||')/applications \
   --project infra \
   --type dir
