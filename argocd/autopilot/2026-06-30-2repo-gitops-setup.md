@@ -42,9 +42,12 @@ fuer `https://gitlab.com/` an. Repo 2 benoetigt daher keine separate Registrieru
 ## Schritt 1: Umgebungsvariablen setzen
 
 ```
+export PATH=$PATH:~
+```
+
+```
 cd
-export MY_NAME=<deine-initialen>
-export REPO2=https://gitlab.com/training.tn1/helm-chart-templates-${MY_NAME}.git
+# GIT_REPO und GIT_TOKEN sollten bereits gesetzt sein 
 ```
 
 Repo 1 klonen und Struktur anschauen:
@@ -56,6 +59,11 @@ cd ~/gitops
 ls
 ls apps/
 ls projects/
+```
+
+```
+export MY_NAME=<dein-name>
+export REPO2=https://gitlab.com/training.tn1/helm-chart-templates-${MY_NAME}.git
 ```
 
 ---
