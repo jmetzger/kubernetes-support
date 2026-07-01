@@ -40,6 +40,8 @@ cd
 
 ## Schritt 4: Personal Access Token (PAT) in gitlab anlegen 
 
+https://gitlab.com/-/user_settings/personal_access_tokens?state=active&sort=expires_asc
+
 <img width="1337" height="522" alt="image" src="https://github.com/user-attachments/assets/e2cf8141-45d5-4011-928e-e679cfb9186d" />
 
 ## Schritt 5: env-Variablen setzten und bootstrap durchführen
