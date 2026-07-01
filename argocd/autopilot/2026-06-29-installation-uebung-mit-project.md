@@ -75,16 +75,31 @@ spaeteren Kustomize-Patches (z.B. der WebInterface-LoadBalancer-Uebung) zu
 Synchronisierungsproblemen, weil ArgoCD dann mit anderen Feld-Ownern (z.B. dem
 DigitalOcean Cloud-Controller-Manager) um dieselben Felder "kaempft".
 
-Wir setzen SSA **global als Default** ueber die `argocd-cm`-ConfigMap statt nur fuer die
-`argo-cd`-Application. Vorteil: gilt automatisch fuer alle spaeteren Applications
-(`hello`, `mariadb`, `cert-manager`, `traefik`, ...), ohne dass man es bei jeder Uebung
-einzeln nachtragen muss.
+### Wichtig: nur Resource-Level-Annotationen sind zuverlaessig
+
+Ein globaler SSA-Default ueber `application.sync.options: ServerSideApply=true` in der
+`argocd-cm`-ConfigMap **wirkt nicht zuverlaessig** — weder fuer gewoehnliche Ressourcen
+(z.B. den `argocd-server`-Service) noch fuer CRDs. Das laesst sich leicht falsch
+verifizieren: `managedFields` kann einen alten `argocd-controller | Apply`-Eintrag von
+einem frueheren Sync zeigen, obwohl der **aktuelle** Sync trotzdem wieder CSA nutzt. Die
+einzige zuverlaessige Pruefung ist, ob die Annotation
+`kubectl.kubernetes.io/last-applied-configuration` existiert — SSA schreibt sie nie, CSA
+immer:
+
+```bash
+kubectl get svc argocd-server -n argocd -o yaml | grep -c last-applied-configuration
+# 0 = SSA aktiv. 1 = trotz Default immer noch CSA.
+```
+
+Deshalb setzen wir SSA direkt als **Annotation auf jeder Ressource**, die es braucht — nicht
+nur global.
 
 ```
 cd ~/gitops/bootstrap/argo-cd
 ```
 
-In `kustomization.yaml` einen Patch fuer `argocd-cm` ergaenzen:
+In `kustomization.yaml` Patches fuer `argocd-server` (Service), `argocd-cm` (globaler
+Fallback-Default fuer alles andere) und die `applicationsets`-CRD ergaenzen:
 
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -95,6 +110,18 @@ resources:
 patches:
 - patch: |-
     apiVersion: v1
+    kind: Service
+    metadata:
+      name: argocd-server
+      annotations:
+        argocd.argoproj.io/sync-options: ServerSideApply=true
+    spec:
+      type: LoadBalancer
+  target:
+    kind: Service
+    name: argocd-server
+- patch: |-
+    apiVersion: v1
     kind: ConfigMap
     metadata:
       name: argocd-cm
@@ -103,63 +130,71 @@ patches:
   target:
     kind: ConfigMap
     name: argocd-cm
+- patch: |-
+    apiVersion: apiextensions.k8s.io/v1
+    kind: CustomResourceDefinition
+    metadata:
+      name: applicationsets.argoproj.io
+      annotations:
+        argocd.argoproj.io/sync-options: ServerSideApply=true,ClientSideApplyMigration=false
+  target:
+    kind: CustomResourceDefinition
+    name: applicationsets.argoproj.io
 ```
+
+> **Hinweis:** Der `argocd-server`-Patch enthaelt hier schon den `type: LoadBalancer`-Teil
+> aus der WebInterface-Uebung mit dazu — wenn ihr Schritt 6 vor dieser Uebung macht, lasst
+> den `spec:`-Block einfach weg und ergaenzt ihn erst dort.
 
 ```
 cd ~/gitops
 git add bootstrap/argo-cd/kustomization.yaml
-git commit -m "enable ServerSideApply as global default via argocd-cm"
+git commit -m "enable ServerSideApply via resource-level annotations"
 git push
 ```
 
-Sync anstossen und pruefen, dass der Default angekommen ist:
+Sync anstossen:
 
 ```
 kubectl -n argocd patch application argo-cd --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
-kubectl get cm argocd-cm -n argocd -o jsonpath='{.data.application\.sync\.options}'
+kubectl -n argocd patch application argo-cd --type merge -p '{"operation":{"sync":{}}}'
 ```
 
-Erwartete Ausgabe: `ServerSideApply=true`.
+### Warum die CRD-Annotation zusaetzlich noetig ist
 
-### Wichtig: Der Default wirkt nicht rueckwirkend
+Die `applicationsets.argoproj.io`-CRD ist zu gross fuer das 262144-Byte-Annotation-Limit.
+ArgoCDs eigener CSA→SSA-Migrationsmechanismus versucht beim Umstieg trotzdem, den alten
+`kubectl-client-side-apply`-Feld-Manager abzuloesen — und scheitert dabei selbst an genau
+diesem Limit (`metadata.annotations: Too long: may not be more than 262144 bytes`), bei
+**jedem** Sync erneut. Das laesst die Application im GUI dauerhaft auf "Syncing" haengen.
+`ClientSideApplyMigration=false` deaktiviert diesen Migrationsschritt. Details:
+[argoproj/argo-cd#26279](https://github.com/argoproj/argo-cd/issues/26279).
 
-Der neue Default gilt nur fuer den **naechsten echten Sync mit Diff** jeder Application.
-`argocd-server` ist zu diesem Zeitpunkt aber schon per Client-Side Apply gebootstrapped
-(CSA-Altlast) und aktuell "Synced" (kein Diff) — ein reiner Refresh loest also **keinen**
-Re-Apply aus, SSA greift dort noch nicht automatisch.
-
-Deshalb muss man den `argocd-server`-Service einmalig **gezielt** neu syncen, damit er auf
-SSA-Ownership umgestellt wird. Das funktioniert IP-schonend (der Service wird dabei nicht
-neu angelegt, nur neu appliziert — wichtig, falls schon eine LoadBalancer-IP vergeben ist).
-
-**Per CLI:**
-
-```bash
-kubectl -n argocd patch application argo-cd --type merge -p '{
-  "operation": {
-    "sync": {
-      "resources": [{"group":"","kind":"Service","name":"argocd-server","namespace":"argocd"}],
-      "syncStrategy": {"apply": {"force": true}}
-    }
-  }
-}'
-```
-
-**Per GUI:**
-
-1. ArgoCD Web Interface oeffnen, Application `argo-cd` anklicken
-2. Im Resource-Tree die Ressource `argocd-server` (Service) auswaehlen
-3. Rechtsklick bzw. Button **Sync** — im Dialog ist die Ressource bereits vorausgewaehlt
-4. Option **FORCE** aktivieren, dann synchronisieren
-
-**Verifizieren:**
+Falls die Application schon in diesem haengenden Zustand ist (`status.operationState.phase:
+Running` mit obiger Fehlermeldung, wiederholt), erst den haengenden Sync abbrechen, bevor
+man den Fix pusht:
 
 ```
-kubectl get svc argocd-server -n argocd -o jsonpath='{range .metadata.managedFields[*]}{.manager}{" | "}{.operation}{"\n"}{end}'
+kubectl -n argocd patch application argo-cd --type merge -p '{"operation":null}'
 ```
 
-Erwartete Ausgabe: `argocd-controller | Apply` taucht auf (statt nur `Update`), External-IP
-und Alter (`AGE`) der Ressource bleiben dabei unveraendert.
+**Verifizieren (Service):**
+
+```
+kubectl get svc argocd-server -n argocd -o yaml | grep -c last-applied-configuration
+```
+
+Erwartete Ausgabe: `0`. External-IP und Alter (`AGE`) der Ressource bleiben dabei
+unveraendert — der Service wird nur neu appliziert, nicht neu angelegt.
+
+**Verifizieren (Applications):**
+
+```
+kubectl get applications -n argocd
+```
+
+Erwartete Ausgabe: alle 4 Applications (`argo-cd`, `autopilot-bootstrap`,
+`cluster-resources-in-cluster`, `root`) `Synced`/`Healthy`.
 
 ## Optional : Autocompletion (bereits installiert) 
 

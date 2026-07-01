@@ -5,6 +5,14 @@
   * Der einzige Weg, du musst argocd-autopilot patched, dass er server side applies macht
   * Die Anleitung zum Verwenden der gepatchten Version findest Du hier [Verwenden der gepatchten Version](argocd/autopilot/2026-06-29-installation-uebung-mit-project.md)
 
+  * **Update:** Schritt 5 und 7 hier unten (App-Level bzw. globaler `ServerSideApply`-Default)
+    funktionieren ebenfalls nicht zuverlässig, auch nicht für laufende Syncs nach dem
+    Bootstrap — mehrfach live auf mehreren Clustern verifiziert. Der einzig zuverlässige Weg
+    ist eine `argocd.argoproj.io/sync-options`-Annotation direkt auf der jeweiligen
+    Ressource (inkl. `ClientSideApplyMigration=false` auf der `applicationsets`-CRD selbst).
+    Siehe Schritt 6 in [2026-06-29-installation-uebung-mit-project.md](2026-06-29-installation-uebung-mit-project.md)
+    für die aktuelle, validierte Lösung.
+
 
 ## Hintergrund
 

@@ -17,6 +17,10 @@ Wir nutzen dafuer ein **Kustomize-Patch** im `bootstrap/argo-cd`-Verzeichnis.
 
 - Bootstrap-Uebung abgeschlossen, ArgoCD laeuft im Cluster
 - `GIT_TOKEN` und `GIT_REPO` gesetzt (aus der Installations-Uebung)
+- **Empfohlen:** Schritt 6 (ServerSideApply aktivieren) aus der Installations-Uebung
+  bereits gemacht — sonst faellt der Sync auf Client-Side Apply zurueck und es kann zu
+  Synchronisierungsproblemen kommen (Konflikte mit anderen Feld-Ownern, z.B. dem
+  DigitalOcean Cloud-Controller-Manager auf dem Service).
 
 Umgebungsvariablen neu setzen falls noetig:
 
@@ -66,13 +70,42 @@ patches:
     kind: Service
     metadata:
       name: argocd-server
+      annotations:
+        argocd.argoproj.io/sync-options: ServerSideApply=true
     spec:
       type: LoadBalancer
   target:
     kind: Service
     name: argocd-server
+- patch: |-
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: argocd-cm
+    data:
+      application.sync.options: ServerSideApply=true
+  target:
+    kind: ConfigMap
+    name: argocd-cm
+- patch: |-
+    apiVersion: apiextensions.k8s.io/v1
+    kind: CustomResourceDefinition
+    metadata:
+      name: applicationsets.argoproj.io
+      annotations:
+        argocd.argoproj.io/sync-options: ServerSideApply=true,ClientSideApplyMigration=false
+  target:
+    kind: CustomResourceDefinition
+    name: applicationsets.argoproj.io
 EOF
 ```
+
+> **Hinweis:** Die `argocd.argoproj.io/sync-options: ServerSideApply=true`-Annotation direkt
+> auf dem Service ist wichtig — ein globaler Default allein ueber die `argocd-cm` (der
+> `ConfigMap`-Patch unten) reicht **nicht** zuverlaessig aus. Details und Begruendung in
+> Schritt 6 der Installations-Uebung. Falls ihr Schritt 6 dort schon gemacht habt, ist diese
+> `kustomization.yaml` identisch — hier nochmal komplett aufgefuehrt, falls diese Uebung
+> eigenstaendig durchgefuehrt wird.
 
 ---
 
@@ -158,7 +191,11 @@ Ihr seht die ArgoCD-Uebersicht mit allen euren Applications.
 
 ## Aufraeumen (Optional)
 
-Den Service wieder auf `ClusterIP` zuruecksetzen — einfach den Patch entfernen:
+Den Service wieder auf `ClusterIP` zuruecksetzen — **`type: ClusterIP` explizit setzen**,
+nicht einfach den `spec:`-Block weglassen. Mit SSA entfernt ein bloss weggelassenes Feld
+den Live-Wert nicht zuverlaessig (SSA raeumt nur Felder auf, die es selbst per Apply
+gesetzt hat — je nach Vorgeschichte des Objekts kann das ins Leere laufen und der Service
+bleibt stillschweigend `LoadBalancer`).
 
 ```
 cd ~/gitops/bootstrap/argo-cd
@@ -171,6 +208,39 @@ kind: Kustomization
 namespace: argocd
 resources:
 - github.com/argoproj-labs/argocd-autopilot/manifests/base?ref=v0.4.20
+patches:
+- patch: |-
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: argocd-server
+      annotations:
+        argocd.argoproj.io/sync-options: ServerSideApply=true
+    spec:
+      type: ClusterIP
+  target:
+    kind: Service
+    name: argocd-server
+- patch: |-
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: argocd-cm
+    data:
+      application.sync.options: ServerSideApply=true
+  target:
+    kind: ConfigMap
+    name: argocd-cm
+- patch: |-
+    apiVersion: apiextensions.k8s.io/v1
+    kind: CustomResourceDefinition
+    metadata:
+      name: applicationsets.argoproj.io
+      annotations:
+        argocd.argoproj.io/sync-options: ServerSideApply=true,ClientSideApplyMigration=false
+  target:
+    kind: CustomResourceDefinition
+    name: applicationsets.argoproj.io
 EOF
 ```
 
@@ -181,7 +251,9 @@ git commit -m "revert argocd-server service to ClusterIP"
 git push
 ```
 
-ArgoCD synct und loescht den LoadBalancer automatisch.
+ArgoCD synct und loescht den LoadBalancer automatisch. Achtung: Beim naechsten Wechsel
+zurueck auf `LoadBalancer` bekommt ihr eine **neue** externe IP — DigitalOcean gibt die alte
+nicht zurueck.
 
 ```
 kubectl get svc argocd-server -n argocd
