@@ -5,6 +5,7 @@
 ### Workshop argocd autopilot 1.07.2026 
 
 * [argocd autopilot mit gepatchter Version im Cluster ausrollen](/argocd/autopilot/2026-06-29-installation-uebung-mit-project.md)
+* [ArgoCD Web Interface: Service auf LoadBalancer aendern (Kustomize-Overlay)](/argocd/autopilot/2026-06-29-WebInterface-config-anpasssen.md)
 * [GitOps 2-Repo-Setup: bootstrap-Repo + helm-chart-templates (Traefik, cert-manager, ClusterIssuer)](/argocd/autopilot/2026-06-30-2repo-gitops-setup.md)
 * [GitOps 3-Repo-Setup: Repo fuer die Fachabteilung (eigenes Chart + ArtifactHub)](argocd/autopilot/2026-06-30-3repo-fachabteilung.md)
 
