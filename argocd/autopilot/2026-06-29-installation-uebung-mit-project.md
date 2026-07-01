@@ -18,9 +18,6 @@ cd
 curl -L --output - https://github.com/blaumann-intern/argocd-autopilot/releases/download/v0.4.20/argocd-autopilot-linux-amd64.tar.gz | tar zx
 mv argocd-autopilot-* argocd-autopilot
 
-# einmalig in der session
-source <(argocd-autopilot completion bash)
-
 # Versionsnummer wird bei dieser gepatchten version leider nicht angezeigt :o(
 ./argocd-autopilot version
 ./argocd-autopilot help 
@@ -43,6 +40,8 @@ cd
 
 ## Schritt 4: Personal Access Token (PAT) in gitlab anlegen 
 
+https://gitlab.com/-/user_settings/personal_access_tokens?state=active&sort=expires_asc
+
 <img width="1337" height="522" alt="image" src="https://github.com/user-attachments/assets/e2cf8141-45d5-4011-928e-e679cfb9186d" />
 
 ## Schritt 5: env-Variablen setzten und bootstrap durchführen
@@ -57,6 +56,11 @@ export GIT_REPO=<hier-deine-repo-url>
 # Das bevölkert das Repo mit den richtigen Einstellungen um zu starten 
 cd
 ./argocd-autopilot repo bootstrap
+```
+
+```
+kubectl -n argocd get pods
+kubectl -n argocd get applications 
 ```
 
 ```

@@ -30,8 +30,11 @@ export GIT_REPO=https://gitlab.com/training.tn1/<dein-gitops-repo>.git
 ## Schritt 1: gitops-Repo vorbereiten
 
 ```
+cd
+git clone $GIT_REPO gitops
+# username
+# und token eingeben 
 cd ~/gitops
-git pull
 ls bootstrap/argo-cd/
 ```
 
@@ -47,6 +50,7 @@ kustomization.yaml
 
 ```
 cd ~/gitops/bootstrap/argo-cd
+cat kustomization.yaml 
 ```
 
 ```
@@ -73,6 +77,11 @@ EOF
 ---
 
 ## Schritt 3: Aenderung pushen
+
+```
+git config --global user.name "Jochen im Blaumann"
+git config --global user.email "jochen@blaumann.de"
+```
 
 ```
 cd ~/gitops
