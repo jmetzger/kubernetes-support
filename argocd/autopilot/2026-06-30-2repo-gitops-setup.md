@@ -295,7 +295,6 @@ EOF
 cd ~/helm-chart-templates-${MY_NAME}
 git add .
 git commit -m "add traefik, cert-manager, cluster-issuer applications"
-git branch -m master main
 git push --set-upstream origin main
 ```
 
